@@ -1,0 +1,1369 @@
+{
+  "_meta": {
+    "last_updated": "2026-05-04T20:55:50Z",
+    "open_count": 64,
+    "resolved_count": 0
+  },
+  "issues": {
+    "src/buyer-agent.ts": {
+      "0048a1cfde1c": {
+        "id": "0048a1cfde1c",
+        "category": "SSRF",
+        "anchor": "acceptAndMaybeSettle",
+        "severity": "Critical",
+        "summary": "Seller-controlled settlement_url used directly in postJson without scheme or host validation, enabling full SSRF",
+        "exploit": "Seller returns AcceptResponse with settlement_url set to http://169.254.169.254/latest/meta-data/ or file:///etc/passwd; buyer POSTs payment data there",
+        "fix": "Validate settlement_url scheme (https-only) and host against an allowlist or the original sellerUrl's host before calling postJson",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "resolved_in": null
+      },
+      "ae775c15442d": {
+        "id": "ae775c15442d",
+        "category": "AUTHENTICATION",
+        "anchor": "createEnvelope",
+        "severity": "Critical",
+        "summary": "All outgoing envelopes use hardcoded BUYER_PUBKEY='mock-buyer-pubkey' and signature='mock'; no real identity or integrity",
+        "exploit": "Any party can forge buyer envelopes; seller cannot authenticate the buyer; replay any captured envelope unchanged",
+        "fix": "Replace with real keypair loaded from secure storage and sign envelope payload with the private key",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "resolved_in": null
+      },
+      "5c967e4e4c48": {
+        "id": "5c967e4e4c48",
+        "category": "AUTHENTICATION",
+        "anchor": "isAcceptResponse",
+        "severity": "High",
+        "summary": "Seller response signatures are never verified; a MITM or rogue seller can forge AcceptResponse with arbitrary settlement_url and payment amount",
+        "exploit": "Intercept OpenResponse/CounterResponse, swap with crafted AcceptResponse; buyer accepts and pays attacker's settlement address",
+        "fix": "Verify each incoming envelope's signature field against sellerPubkey before processing the body",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "resolved_in": null
+      },
+      "291db0d610b3": {
+        "id": "291db0d610b3",
+        "category": "BUSINESS_LOGIC",
+        "anchor": "acceptAndMaybeSettle",
+        "severity": "High",
+        "summary": "Human confirmation summary shows acceptedPrice but actual payment uses acceptResponse.payment_required.amount, which can differ",
+        "exploit": "Seller agrees at price 100 but payment_required.amount is 10000; human sees 100 in the confirmation dialog, buyer pays 10000",
+        "fix": "Display payment_required.amount in the human confirmation summary and validate it equals acceptedPrice within an acceptable tolerance",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "resolved_in": null
+      },
+      "82da64f0dede": {
+        "id": "82da64f0dede",
+        "category": "AUTHORIZATION",
+        "anchor": "runBuyerNegotiation",
+        "severity": "High",
+        "summary": "openResponse.deal_id is accepted from the seller without validation and used for all subsequent protocol messages, enabling deal-id hijacking",
+        "exploit": "Seller returns deal_id of an existing settled deal; buyer re-opens and re-settles that deal, or seller returns deal_id belonging to another buyer",
+        "fix": "Generate deal_id on the buyer side before opening and reject any response where deal_id does not match",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "resolved_in": null
+      },
+      "5b0901aea993": {
+        "id": "5b0901aea993",
+        "category": "REPLAY_ATTACK",
+        "anchor": "postRpc",
+        "severity": "High",
+        "summary": "No nonce, session token, or response-timestamp validation; a captured seller AcceptResponse can be replayed to trigger duplicate settlement",
+        "exploit": "Record a valid AcceptResponse; replay it to a fresh runBuyerNegotiation call after the first deal completes; buyer pays twice",
+        "fix": "Include a buyer-generated nonce in each outgoing envelope and validate that each response references the correct nonce and a fresh timestamp",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "resolved_in": null
+      },
+      "62803065723d": {
+        "id": "62803065723d",
+        "category": "SSRF",
+        "anchor": "normalizeSellerUrl",
+        "severity": "High",
+        "summary": "sellerUrl is only stripped of trailing slashes; file://, gopher://, and http://internal-host schemes are accepted",
+        "exploit": "Pass sellerUrl='file:///etc/passwd' or 'http://10.0.0.1/admin'; all RPC calls and the open POST are sent there",
+        "fix": "Parse the URL and enforce https:// scheme; reject private/loopback IP ranges before constructing any request",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "resolved_in": null
+      },
+      "b3b525c31d56": {
+        "id": "b3b525c31d56",
+        "category": "PARTIAL_FAILURE",
+        "anchor": "acceptAndMaybeSettle",
+        "severity": "High",
+        "summary": "If postJson to settlement_url throws after human confirms, the deal is stranded: seller sees accept, buyer has no txHash, no recovery path",
+        "exploit": "Seller returns a valid AcceptResponse with a settlement_url that times out after human clicks y; deal is permanently in limbo with funds potentially reserved",
+        "fix": "Wrap settlement POST in try/catch; on failure record the accepted deal state persistently so the buyer can retry settlement independently",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "resolved_in": null
+      },
+      "550821deff17": {
+        "id": "550821deff17",
+        "category": "NUMERIC_EDGE_CASE",
+        "anchor": "acceptAndMaybeSettle",
+        "severity": "High",
+        "summary": "acceptResponse.payment_required.amount is used in toFixed(2) and validateOutboundOrWalk without NaN/Infinity/negative guards",
+        "exploit": "Seller returns payment_required:{amount:Infinity}; toFixed(2) returns 'Infinity'; validation may pass max_price check since Infinity>max_price is true but the branch depends on validateBuyerAction logic; subsequent postJson sends Infinity as amount",
+        "fix": "Validate that payment_required.amount is a finite positive number before any further processing",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "resolved_in": null
+      },
+      "3bd09fbce778": {
+        "id": "3bd09fbce778",
+        "category": "STATE_VIOLATION",
+        "anchor": "acceptAndMaybeSettle",
+        "severity": "Medium",
+        "summary": "Walk is sent after AcceptResponse is already received; seller state is 'accepted' but buyer sends walk, creating irreconcilable protocol state",
+        "exploit": "Human declines or settlement validation fails after postRpc accept succeeds; seller has committed the deal but receives a walk; downstream reconciliation is undefined",
+        "fix": "Implement an explicit 'cancel-post-accept' message type or ensure walk-after-accept semantics are defined and tested in the protocol spec",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "resolved_in": null
+      },
+      "3d734c9bea5b": {
+        "id": "3d734c9bea5b",
+        "category": "LOG_INJECTION",
+        "anchor": "acceptAndMaybeSettle",
+        "severity": "Medium",
+        "summary": "proof.txHash and proof.artifact from seller are written to transcript verbatim without newline or control-character sanitization",
+        "exploit": "Seller returns txHash='abc\\n[Settled] txHash: attacker-controlled' or artifact containing ANSI escape codes; transcript is forged or terminal is hijacked",
+        "fix": "Strip or escape newlines and non-printable characters from all seller-supplied strings before appending to transcript",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "resolved_in": null
+      },
+      "a2f853b53790": {
+        "id": "a2f853b53790",
+        "category": "LOG_INJECTION",
+        "anchor": "runBuyerNegotiation",
+        "severity": "Medium",
+        "summary": "counterResponse.terms from seller is appended to transcript and used in human confirmation summary without sanitization",
+        "exploit": "Seller returns terms='legit terms\\n[Settled] txHash: fake'; transcript shows a fake settlement entry; human sees forged confirmation text",
+        "fix": "Sanitize terms (and all other seller string fields) by removing newlines and control characters before use in transcript or confirmation display",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "resolved_in": null
+      },
+      "fa0c81cb677e": {
+        "id": "fa0c81cb677e",
+        "category": "UNHANDLED_EXCEPTION",
+        "anchor": "postJson",
+        "severity": "Medium",
+        "summary": "response.json() is called without try/catch; malformed or truncated JSON body throws an uncaught TypeError that propagates out of runBuyerNegotiation",
+        "exploit": "Seller returns HTTP 200 with body 'not-json'; response.json() throws; exception is uncaught; deal state is abandoned mid-negotiation",
+        "fix": "Wrap response.json() in try/catch and throw a typed protocol error so callers can handle parse failures explicitly",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "resolved_in": null
+      },
+      "c9997dc5b91c": {
+        "id": "c9997dc5b91c",
+        "category": "DOS",
+        "anchor": "postJson",
+        "severity": "Medium",
+        "summary": "fetch has no timeout and no response-body size limit; a slow or huge seller response blocks the buyer indefinitely",
+        "exploit": "Seller streams a gigabyte body or stalls the response; Node.js buffers the whole body; buyer thread is blocked; memory exhaustion or indefinite hang",
+        "fix": "Pass an AbortSignal with a configurable timeout to fetch and enforce a max response body size before calling response.json()",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "resolved_in": null
+      },
+      "11a30c676404": {
+        "id": "11a30c676404",
+        "category": "INPUT_VALIDATION",
+        "anchor": "runBuyerNegotiation",
+        "severity": "Medium",
+        "summary": "openResponse.deal_id is used as-is with no length, charset, or format validation; path-traversal or injection payloads reach audit and RPC layers",
+        "exploit": "Seller returns deal_id='../../../etc/passwd' or deal_id with 10 MB string; downstream audit writer or log system is affected",
+        "fix": "Validate deal_id matches a strict pattern (e.g., UUID or alphanumeric â‰¤64 chars) immediately after receiving OpenResponse",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "resolved_in": null
+      },
+      "674be3d64904": {
+        "id": "674be3d64904",
+        "category": "BUSINESS_LOGIC",
+        "anchor": "validateOutboundOrWalk",
+        "severity": "Medium",
+        "summary": "When human declines, validateOutboundOrWalk is called for 'settle' with humanConfirmed=false; if the validator internally blocks, it fires a 'validation_denied' walk before the outer code fires a 'human_confirmation_required' walk, sending two conflicting walks",
+        "exploit": "Human clicks n; validateBuyerAction denies settle; sendWalk('validation_denied') fires inside validateOutboundOrWalk; caller returns early and skips the human_confirmation_required walk; protocol receives wrong reason code",
+        "fix": "Do not call validateOutboundOrWalk when the intent is already to walk on human denial; send a single walk with 'human_confirmation_required' directly",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "resolved_in": null
+      },
+      "bf3f1c3a3c9b": {
+        "id": "bf3f1c3a3c9b",
+        "category": "SILENT_FAILURE",
+        "anchor": "sendWalk",
+        "severity": "Low",
+        "summary": "Return value of sendWalk is discarded at every call site; a failed or rejected walk is never detected or retried",
+        "exploit": "Seller drops walk messages; buyer believes it walked but seller continues treating deal as open; protocol desync is invisible to buyer",
+        "fix": "Await sendWalk and log or surface non-OK responses; consider retry logic for walk delivery",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "resolved_in": null
+      },
+      "31bcb9a22a59": {
+        "id": "31bcb9a22a59",
+        "category": "INFO_DISCLOSURE",
+        "anchor": "postJson",
+        "severity": "Low",
+        "summary": "Error message includes the full URL on HTTP failure, which may expose internal settlement_url values to logs or error boundaries",
+        "exploit": "Settlement POST fails; error 'POST http://internal-payment-service/pay?secret=xyz failed with HTTP 500' is logged or returned in API error response",
+        "fix": "Log the URL server-side only; return a generic error to callers that omits the raw URL",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "resolved_in": null
+      }
+    },
+    "src/validation.ts": {
+      "f3a67a6c360b": {
+        "id": "f3a67a6c360b",
+        "category": "UNHANDLED_EXCEPTION",
+        "anchor": "validateBuyerAction",
+        "severity": "High",
+        "summary": "Unconditional throw propagates uncaught exception to every caller",
+        "exploit": "Call validateBuyerAction with any arguments; callers lacking try/catch will crash or expose an unhandled-rejection stack trace",
+        "fix": "Return a ValidationResult stub or guard callers; never ship an unconditional throw on a hot validation path",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "resolved_in": null
+      },
+      "aa00da034c2f": {
+        "id": "aa00da034c2f",
+        "category": "UNHANDLED_EXCEPTION",
+        "anchor": "validateSellerAction",
+        "severity": "High",
+        "summary": "Unconditional throw propagates uncaught exception to every caller",
+        "exploit": "Call validateSellerAction with any arguments; same crash vector as validateBuyerAction",
+        "fix": "Same as above â€” return a safe default or remove the export until implemented",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "resolved_in": null
+      },
+      "cb9a4d33d2b5": {
+        "id": "cb9a4d33d2b5",
+        "category": "INFO_DISCLOSURE",
+        "anchor": "validateBuyerAction",
+        "severity": "Medium",
+        "summary": "Error message leaks internal file path and developer identity",
+        "exploit": "Trigger the throw and capture the Error.message â€” 'validation.ts: not implemented by Developer 1 yet' reveals internal architecture and team structure",
+        "fix": "Use a generic opaque message such as 'Service temporarily unavailable' or an error code",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "resolved_in": null
+      },
+      "ce26dedccb07": {
+        "id": "ce26dedccb07",
+        "category": "INFO_DISCLOSURE",
+        "anchor": "validateSellerAction",
+        "severity": "Medium",
+        "summary": "Same internal-detail leak in seller validation error message",
+        "exploit": "Same as above",
+        "fix": "Same â€” use an opaque error message",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "resolved_in": null
+      },
+      "426d75bd6ea4": {
+        "id": "426d75bd6ea4",
+        "category": "BUSINESS_LOGIC",
+        "anchor": "module",
+        "severity": "Critical",
+        "summary": "Entire validation layer is unimplemented; all buyer and seller actions are unvalidated",
+        "exploit": "Any production deployment of this stub allows price, quantity, and action values to flow through with zero enforcement â€” negative prices, zero quantities, or unauthorized actions are never rejected",
+        "fix": "Block deployment until both functions are fully implemented and return real ValidationResult values",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "resolved_in": null
+      },
+      "3134027b9e56": {
+        "id": "3134027b9e56",
+        "category": "STATE_VIOLATION",
+        "anchor": "validateBuyerAction",
+        "severity": "High",
+        "summary": "humanConfirmed flag is never checked; human-in-the-loop invariant can be silently violated",
+        "exploit": "Pass humanConfirmed=false for a high-value 'accept' or 'settle' action â€” stub throws before enforcing the flag, so any error-swallowing middleware allows the action to proceed without human approval",
+        "fix": "Implement an explicit guard: if (!humanConfirmed && ['accept','settle'].includes(action)) return {valid:false, reason:'requires human confirmation'}",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "resolved_in": null
+      }
+    },
+    "src/audit.ts": {
+      "565188a0f791": {
+        "id": "565188a0f791",
+        "category": "UNHANDLED_EXCEPTION",
+        "anchor": "writeBuyerAudit",
+        "severity": "High",
+        "summary": "Function always throws, any caller will crash at runtime",
+        "exploit": "Call writeBuyerAudit() with any valid BuyerAuditEntry â€” unconditional throw propagates to caller",
+        "fix": "Implement the function body or use a no-op stub instead of throwing",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "resolved_in": null
+      },
+      "c0b0bef25a60": {
+        "id": "c0b0bef25a60",
+        "category": "UNHANDLED_EXCEPTION",
+        "anchor": "writeSellerAudit",
+        "severity": "High",
+        "summary": "Function always throws, any caller will crash at runtime",
+        "exploit": "Call writeSellerAudit() with any valid SellerAuditEntry â€” unconditional throw propagates to caller",
+        "fix": "Implement the function body or use a no-op stub instead of throwing",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "resolved_in": null
+      },
+      "7d64d20b7e82": {
+        "id": "7d64d20b7e82",
+        "category": "SILENT_FAILURE",
+        "anchor": "module",
+        "severity": "Medium",
+        "summary": "Audit trail is entirely non-functional â€” security events are never recorded",
+        "exploit": "Trigger any auditable action (bid, negotiation, settlement); no audit log is written, violations go undetected",
+        "fix": "Implement or wire a real audit sink before deploying; failing open on audit is a compliance/forensics risk",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "resolved_in": null
+      }
+    },
+    "src/seller-server.ts": {
+      "1558d370b3d1": {
+        "id": "1558d370b3d1",
+        "category": "INPUT_VALIDATION",
+        "anchor": "module",
+        "severity": "Info",
+        "summary": "No vulnerabilities found",
+        "exploit": "â€”",
+        "fix": "â€”",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "resolved_in": null
+      }
+    },
+    "src/schemas.ts": {
+      "ce37a6aa96f0": {
+        "id": "ce37a6aa96f0",
+        "category": "INPUT_VALIDATION",
+        "anchor": "parseOpenRequest",
+        "severity": "Critical",
+        "summary": "Stub always throws; no validation ever executes, any input passes type-cast unsanitized if caller catches the error",
+        "exploit": "Caller wraps in try/catch and falls back to raw cast: the thrown error is swallowed and untrusted data flows downstream as OpenRequest",
+        "fix": "Implement full Zod/ajv schema validation before the function is deployed; block deployment of stub in production via CI gate",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "resolved_in": null
+      },
+      "5d60bb2827cb": {
+        "id": "5d60bb2827cb",
+        "category": "INPUT_VALIDATION",
+        "anchor": "parseCounterRequest",
+        "severity": "Critical",
+        "summary": "Same stub failure â€” CounterRequest validation never runs",
+        "exploit": "Same catch-and-cast pattern against raw untrusted input",
+        "fix": "Implement validation; add pre-deployment CI check that stubs are replaced",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "resolved_in": null
+      },
+      "724980e82e99": {
+        "id": "724980e82e99",
+        "category": "INPUT_VALIDATION",
+        "anchor": "parseAcceptRequest",
+        "severity": "Critical",
+        "summary": "Same stub failure â€” AcceptRequest validation never runs",
+        "exploit": "Same catch-and-cast pattern against raw untrusted input",
+        "fix": "Implement validation; add pre-deployment CI check that stubs are replaced",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "resolved_in": null
+      },
+      "671def533296": {
+        "id": "671def533296",
+        "category": "INPUT_VALIDATION",
+        "anchor": "parseWalkRequest",
+        "severity": "Critical",
+        "summary": "Same stub failure â€” WalkRequest validation never runs",
+        "exploit": "Same catch-and-cast pattern against raw untrusted input",
+        "fix": "Implement validation; add pre-deployment CI check that stubs are replaced",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "resolved_in": null
+      },
+      "b2b7018f2bb5": {
+        "id": "b2b7018f2bb5",
+        "category": "INPUT_VALIDATION",
+        "anchor": "parseStatusRequest",
+        "severity": "Critical",
+        "summary": "Same stub failure â€” StatusRequest validation never runs",
+        "exploit": "Same catch-and-cast pattern against raw untrusted input",
+        "fix": "Implement validation; add pre-deployment CI check that stubs are replaced",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "resolved_in": null
+      },
+      "634b11ec2a79": {
+        "id": "634b11ec2a79",
+        "category": "UNHANDLED_EXCEPTION",
+        "anchor": "module",
+        "severity": "High",
+        "summary": "All parse functions unconditionally throw; any caller without explicit error handling will crash the process",
+        "exploit": "Call any parse function without try/catch in an async Express route handler â€” unhandled promise rejection crashes or hangs the server",
+        "fix": "Implement functions; document throwing contract; ensure all call sites wrap in try/catch or use a centralized error boundary",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "resolved_in": null
+      },
+      "f53f364fda12": {
+        "id": "f53f364fda12",
+        "category": "STATE_VIOLATION",
+        "anchor": "module",
+        "severity": "High",
+        "summary": "Stub functions make the system appear functional at compile time but are permanently broken at runtime, violating the contract between Developer 1 and consuming code",
+        "exploit": "Deploy to staging/prod before Developer 1 delivers; every negotiation endpoint becomes a 500 with no useful error to the client",
+        "fix": "Add a TODO-blocking lint rule or integration test that fails CI if any parse function still throws 'not implemented'",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "resolved_in": null
+      },
+      "dc53a2d7eafb": {
+        "id": "dc53a2d7eafb",
+        "category": "INFO_DISCLOSURE",
+        "anchor": "module",
+        "severity": "Low",
+        "summary": "Error message exposes internal developer ownership model ('Developer 1') and file structure to any caller who surfaces the raw exception message",
+        "exploit": "Trigger any parse call, catch the Error, and return error.message directly in an API response â€” leaks team/file internals",
+        "fix": "Use a generic 'not implemented' message without internal attribution; strip raw error messages from API responses",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "resolved_in": null
+      }
+    },
+    "src/types.ts": {
+      "96009440883c": {
+        "id": "96009440883c",
+        "category": "REPLAY_ATTACK",
+        "anchor": "NuffEnvelope",
+        "severity": "Critical",
+        "summary": "expires_at is optional; omitting it produces a signed envelope valid forever, enabling indefinite replay",
+        "exploit": "Send a NuffEnvelope without expires_at; the signature remains valid and the message can be re-submitted at any future time",
+        "fix": "Make expires_at required and enforce a maximum validity window at parse time",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "resolved_in": null
+      },
+      "6d4884b81cc7": {
+        "id": "6d4884b81cc7",
+        "category": "AUTHENTICATION",
+        "anchor": "NuffEnvelope",
+        "severity": "Critical",
+        "summary": "signature is an untyped string with no algorithm binding; empty string or algorithm-confusion attacks are type-valid",
+        "exploit": "Submit signature:\"\" or switch signing algorithm (e.g. HMAC-SHA256 instead of Ed25519); no field rejects either",
+        "fix": "Add a required sig_alg field with a locked literal type (e.g. \"ed25519\") and reject empty signatures at validation boundary",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "resolved_in": null
+      },
+      "5c6459faaf72": {
+        "id": "5c6459faaf72",
+        "category": "BUSINESS_LOGIC",
+        "anchor": "AcceptResponse",
+        "severity": "Critical",
+        "summary": "payment_required.pay_to is an unvalidated string; seller can substitute an arbitrary or attacker-controlled address",
+        "exploit": "Seller returns pay_to:\"0xattacker\" or pay_to:\"\"; buyer's agent pays the wrong address with no type-level rejection",
+        "fix": "Constrain pay_to with a branded type or regex pattern enforced at the validation boundary (e.g. EIP-55 checksum address)",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "resolved_in": null
+      },
+      "22ef6ded9f1e": {
+        "id": "22ef6ded9f1e",
+        "category": "INFO_DISCLOSURE",
+        "anchor": "BuyerAuditEntry",
+        "severity": "High",
+        "summary": "cap field in audit log exposes buyer's maximum price; if logs reach the seller, BATNA is fully revealed",
+        "exploit": "Seller reads audit log entries (e.g. via shared storage, log aggregator, or compromised log pipeline) and learns cap, then demands exactly that price in every counter",
+        "fix": "Remove cap from the exported audit type or replace it with a boolean hit_cap; store the raw value only in a buyer-private log",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "resolved_in": null
+      },
+      "e385920809f9": {
+        "id": "e385920809f9",
+        "category": "INFO_DISCLOSURE",
+        "anchor": "SellerAuditEntry",
+        "severity": "High",
+        "summary": "floor field in audit log exposes seller's minimum price; buyer learning it can offer exactly floor and extract maximum surplus",
+        "exploit": "Buyer reads SellerAuditEntry (e.g. via shared log storage) and learns floor, then makes a take-it-or-leave-it offer at floor+1",
+        "fix": "Remove floor from the exported audit type or replace with a boolean at_floor boolean flag",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "resolved_in": null
+      },
+      "b6290722dca0": {
+        "id": "b6290722dca0",
+        "category": "SSRF",
+        "anchor": "AcceptResponse",
+        "severity": "High",
+        "summary": "settlement_url is an unconstrained string; seller can return internal network or metadata-service URLs",
+        "exploit": "Seller sets settlement_url:\"http://169.254.169.254/latest/meta-data/\" ; buyer agent fetches it, leaking cloud credentials",
+        "fix": "Validate settlement_url at parse time against an allowlist of schemes/hosts; reject non-HTTPS or RFC-1918 targets",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "resolved_in": null
+      },
+      "0525c246fb53": {
+        "id": "0525c246fb53",
+        "category": "NUMERIC_EDGE_CASE",
+        "anchor": "BuyerIntent",
+        "severity": "High",
+        "summary": "max_price, target_price, and all number price fields accept NaN and Infinity; NaN poisons all comparisons silently",
+        "exploit": "Send max_price:NaN; every guard of the form price <= max_price evaluates to false, bypassing the cap entirely",
+        "fix": "Add a branded PositiveFiniteNumber type validated at ingress with Number.isFinite(v) && v > 0",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "resolved_in": null
+      },
+      "e5b436725f8e": {
+        "id": "e5b436725f8e",
+        "category": "NUMERIC_EDGE_CASE",
+        "anchor": "NuffEnvelope",
+        "severity": "Medium",
+        "summary": "round: number accepts negative values and non-integers, breaking the round-based state machine",
+        "exploit": "Send round:-1 or round:0.5; state machine comparisons behave unexpectedly, potentially allowing out-of-order processing",
+        "fix": "Validate that round is a non-negative integer (Number.isInteger && v >= 0) at envelope parse time",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "resolved_in": null
+      },
+      "59c4101b651f": {
+        "id": "59c4101b651f",
+        "category": "BUSINESS_LOGIC",
+        "anchor": "SellerStrategy",
+        "severity": "High",
+        "summary": "No type constraint that floor_price <= preferred_price <= opening_ask; inverted values produce irrational seller behaviour",
+        "exploit": "Set floor_price:1000, opening_ask:1; seller accepts any offer above 1 but will never walk even below floor",
+        "fix": "Add a runtime invariant check (or Zod refinement) asserting floor_price <= preferred_price <= opening_ask",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "resolved_in": null
+      },
+      "9023246fac39": {
+        "id": "9023246fac39",
+        "category": "BUSINESS_LOGIC",
+        "anchor": "AcceptRequest",
+        "severity": "High",
+        "summary": "accepted_price is unconstrained; buyer can accept at a price never offered, including 0 or negative",
+        "exploit": "Send AcceptRequest with accepted_price:0 after a negotiation; type system does not prevent accepting at an off-protocol price",
+        "fix": "Validate accepted_price matches the last counter price on record before processing the accept",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "resolved_in": null
+      },
+      "e8999ffa062b": {
+        "id": "e8999ffa062b",
+        "category": "BUSINESS_LOGIC",
+        "anchor": "BuyerIntent",
+        "severity": "Medium",
+        "summary": "require_human_confirmation_above accepts 0 or negative, making every transaction trigger human confirmation, or can be set to Infinity to bypass all confirmations",
+        "exploit": "Set require_human_confirmation_above:-1 to gate every single micro-payment on human approval, or Infinity to silently skip confirmation on any amount",
+        "fix": "Validate that require_human_confirmation_above is a positive finite number when present",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "resolved_in": null
+      },
+      "9daac9481546": {
+        "id": "9daac9481546",
+        "category": "PARTIAL_FAILURE",
+        "anchor": "BuyerIntent",
+        "severity": "Medium",
+        "summary": "allow_partial_match:true is expressible but OpenResponse and AcceptResponse have no quantity_filled field; partial fills are silently undetectable",
+        "exploit": "Seller accepts a partial quantity (e.g. 3 of 10 units) but the response type carries no quantity field; buyer agent pays full amount for partial delivery",
+        "fix": "Add quantity_filled: number to OpenResponse and AcceptResponse, required when allow_partial_match is true",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "resolved_in": null
+      },
+      "46833b646d96": {
+        "id": "46833b646d96",
+        "category": "LOG_INJECTION",
+        "anchor": "WalkRequest",
+        "severity": "Medium",
+        "summary": "note is a free-form string with no length or character restrictions; can inject CRLF or structured-log tokens",
+        "exploit": "Send note:\"\\n2026-01-01 INFO deal accepted price=0\" to forge a fake audit log entry in newline-delimited log systems",
+        "fix": "Sanitize or reject note values containing CR/LF/NUL at validation boundary; enforce a max length (e.g. 256 chars)",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "resolved_in": null
+      },
+      "b92ad5df9e93": {
+        "id": "b92ad5df9e93",
+        "category": "LOG_INJECTION",
+        "anchor": "OpenRequest",
+        "severity": "Medium",
+        "summary": "intent_summary is an unbounded string that may be written verbatim to logs, enabling log forging",
+        "exploit": "Send intent_summary containing CRLF sequences or JSON-breaking characters to inject false log lines",
+        "fix": "Sanitize intent_summary at ingress; strip control characters and enforce a maximum length",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "resolved_in": null
+      },
+      "2066e42719ec": {
+        "id": "2066e42719ec",
+        "category": "STATE_VIOLATION",
+        "anchor": "DealPhase",
+        "severity": "Medium",
+        "summary": "DealPhase is a plain union with no transition table; type system permits arbitrary phase jumps (open -> settled)",
+        "exploit": "Construct a StatusResponse with phase:\"settled\" for a deal still in phase:\"open\"; no type guard prevents illegal transitions",
+        "fix": "Enforce a state transition map at runtime (e.g. allowedTransitions[current].includes(next)) before mutating phase",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "resolved_in": null
+      },
+      "56f51c7367a2": {
+        "id": "56f51c7367a2",
+        "category": "DOS",
+        "anchor": "BuyerIntent",
+        "severity": "Medium",
+        "summary": "max_rounds: number accepts Infinity or MAX_SAFE_INTEGER, enabling unbounded negotiation loops",
+        "exploit": "Set max_rounds:Infinity; negotiation agent loops forever without terminating, exhausting compute or API budget",
+        "fix": "Validate max_rounds is a positive integer within a reasonable ceiling (e.g. <= 100) at ingress",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "resolved_in": null
+      },
+      "e0903bf44239": {
+        "id": "e0903bf44239",
+        "category": "SILENT_FAILURE",
+        "anchor": "OpenResponse",
+        "severity": "Medium",
+        "summary": "accepted:false with reason_code optional means rejections can carry no actionable information",
+        "exploit": "Seller returns {accepted:false} with no reason_code or counter_price; buyer agent has no basis to counter and may silently walk",
+        "fix": "Make reason_code required when accepted is false, using a discriminated union: {accepted:false; reason_code: string}",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "resolved_in": null
+      },
+      "df4413d14672": {
+        "id": "df4413d14672",
+        "category": "INPUT_VALIDATION",
+        "anchor": "NuffEnvelope",
+        "severity": "Low",
+        "summary": "timestamp and expires_at are untyped strings with no ISO-8601 format enforcement; malformed or past dates are type-valid",
+        "exploit": "Send timestamp:\"not-a-date\"; downstream Date.parse returns NaN, making expiry and ordering checks silently incorrect",
+        "fix": "Use a branded ISODateString type validated with a strict regex or Date.parse check at ingress",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "resolved_in": null
+      }
+    },
+    "src/heuristics.ts": {
+      "1119fb0c927c": {
+        "id": "1119fb0c927c",
+        "category": "INPUT_VALIDATION",
+        "anchor": "module",
+        "severity": "Info",
+        "summary": "No vulnerabilities found",
+        "exploit": "â€”",
+        "fix": "â€”",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "resolved_in": null
+      }
+    },
+    "src/demo.ts": {
+      "96d105b93a4f": {
+        "id": "96d105b93a4f",
+        "category": "AUTHENTICATION",
+        "anchor": "module",
+        "severity": "High",
+        "summary": "SELLER_PUBKEY is a hardcoded literal 'mock-seller-pubkey' providing no real cryptographic seller identity verification",
+        "exploit": "Any server at SELLER_URL trivially passes pubkey checks because the expected key is always the well-known string 'mock-seller-pubkey'; a MitM or rogue seller is indistinguishable from the legitimate one",
+        "fix": "Load seller pubkey from a secure env var or config file and verify TLS/message signatures against the real key",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "resolved_in": null
+      },
+      "c0ba1b58e3f0": {
+        "id": "c0ba1b58e3f0",
+        "category": "SSRF",
+        "anchor": "main",
+        "severity": "High",
+        "summary": "SELLER_URL env var is passed to runBuyerNegotiation without scheme or host validation, enabling SSRF to internal services",
+        "exploit": "SELLER_URL=http://169.254.169.254/latest/meta-data/ in a cloud environment causes the buyer agent to exfiltrate instance metadata credentials",
+        "fix": "Validate SELLER_URL against an allowlist of permitted schemes and hostnames before passing it to the negotiation function",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "resolved_in": null
+      },
+      "48115d73de95": {
+        "id": "48115d73de95",
+        "category": "RACE_CONDITION",
+        "anchor": "main",
+        "severity": "Medium",
+        "summary": "runBuyerNegotiation is called immediately after app.listen() without awaiting the 'listening' event, so the first request can arrive before the socket is bound",
+        "exploit": "On a loaded system the buyer agent's first HTTP request races the TCP bind and receives ECONNREFUSED, causing the negotiation to fail non-deterministically",
+        "fix": "Wrap app.listen() in a promise that resolves on the 'listening' event and await it before calling runBuyerNegotiation",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "resolved_in": null
+      },
+      "b1c68694adf7": {
+        "id": "b1c68694adf7",
+        "category": "INPUT_VALIDATION",
+        "anchor": "module",
+        "severity": "Medium",
+        "summary": "PORT env var is cast with Number() but never range-validated; NaN, 0, negative, or >65535 values silently reach app.listen()",
+        "exploit": "PORT=abc yields SELLER_PORT=NaN and sellerUrl='http://localhost:NaN'; PORT=99999 is an invalid port; both produce silent misconfiguration or an unhandled listen error",
+        "fix": "After parsing, assert Number.isInteger(SELLER_PORT) && SELLER_PORT >= 1 && SELLER_PORT <= 65535 and throw a descriptive error otherwise",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "resolved_in": null
+      },
+      "6063e253d618": {
+        "id": "6063e253d618",
+        "category": "BUSINESS_LOGIC",
+        "anchor": "main",
+        "severity": "Medium",
+        "summary": "opening_offer is hardcoded at 4 while target_price is Math.min(4,maxPrice); when maxPrice<4 the buyer opens above their own price ceiling",
+        "exploit": "BUYER_MAX_PRICE=3 â†’ target_price=3 but strategy.opening_offer=4; the buyer's first bid exceeds their stated maximum, violating their own mandate",
+        "fix": "Derive opening_offer dynamically as Math.min(4, maxPrice) so it never exceeds the buyer's ceiling",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "resolved_in": null
+      },
+      "040cab2f40b6": {
+        "id": "040cab2f40b6",
+        "category": "LOG_INJECTION",
+        "anchor": "main",
+        "severity": "Low",
+        "summary": "result.txHash and result.artifact from the external seller server are interpolated directly into console.log without sanitization",
+        "exploit": "Seller returns txHash containing '\\n[Settled] FAKE_ENTRY\\n[Admin] payment-redirected' to inject spurious log lines that deceive operators or downstream log parsers",
+        "fix": "Strip or encode newlines and control characters from externally-sourced strings before interpolating them into log messages",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "resolved_in": null
+      },
+      "e6bc1886ee61": {
+        "id": "e6bc1886ee61",
+        "category": "STATE_VIOLATION",
+        "anchor": "main",
+        "severity": "Low",
+        "summary": "Local seller server is unconditionally started even when SELLER_URL env var overrides the endpoint, wasting a port binding and running a live HTTP service unnecessarily",
+        "exploit": "Set SELLER_URL to an external endpoint; the local server still binds SELLER_PORT, accepts connections, and processes requests even though the buyer never talks to it",
+        "fix": "Conditionally start the local server only when SELLER_URL is not set in the environment",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "resolved_in": null
+      },
+      "2d8b254022b1": {
+        "id": "2d8b254022b1",
+        "category": "PARTIAL_FAILURE",
+        "anchor": "main",
+        "severity": "Low",
+        "summary": "If server.close() rejects inside the finally block, it throws and replaces any in-flight negotiation error, making the root cause invisible",
+        "exploit": "A negotiation failure followed by a server close error causes the outer catch to see only the server close error; the original business failure is lost and process.exitCode may be set for the wrong reason",
+        "fix": "Catch the server.close() rejection independently (e.g., with .catch(console.error)) so it never masks the primary exception",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "resolved_in": null
+      },
+      "2e00f135e9cc": {
+        "id": "2e00f135e9cc",
+        "category": "INFO_DISCLOSURE",
+        "anchor": "module",
+        "severity": "Low",
+        "summary": "When a non-Error rejection reaches the top-level catch, the raw value is passed to console.error, potentially printing internal objects with sensitive fields",
+        "exploit": "A rejected promise carrying {apiKey:'sk-live-...', status:'failed'} prints the full object to stderr where it may be captured by log aggregators",
+        "fix": "Always serialize unknown thrown values safely: String(error) or JSON.stringify with a replacer that redacts known sensitive keys",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
+          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
+          "at": "2026-05-04T20:55:50Z"
+        },
+        "resolved_in": null
+      }
+    }
+  }
+}
