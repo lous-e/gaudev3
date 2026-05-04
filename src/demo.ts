@@ -71,12 +71,6 @@ async function main(): Promise<void> {
       askForHumanConfirmation
     );
 
-    if (result.transcript) {
-      console.log("");
-      console.log(result.transcript.join("\n"));
-      console.log("");
-    }
-
     if (result.settled) {
       console.log(`[Settled] txHash: ${result.txHash ?? "missing"}`);
       console.log(`[Artifact] ${result.artifact ?? "missing"}`);
@@ -95,6 +89,14 @@ async function main(): Promise<void> {
 }
 
 main().catch((error) => {
-  console.error(error instanceof Error ? error.message : error);
+  const message = error instanceof Error ? error.message : String(error);
+
+  if (message.includes("not implemented by Developer 1 yet")) {
+    console.error("[Blocked] Demo runtime is waiting on Developer 1 core/server implementations.");
+    console.error(message);
+  } else {
+    console.error(message);
+  }
+
   process.exitCode = 1;
 });
