@@ -1,648 +1,547 @@
-# BidMesh Negotiation Protocol Plan
+# BidMesh MVP — ClawHub Skill Implementation Plan
 
-## Purpose
+**Time budget:** 3–4 hours  
+**Target:** Functional ClawHub skill publishable to the OpenClaw registry  
+**Pitch context:** YC demo — agent-to-agent marketplace with human-guardrailed bidding
 
-BidMesh lets two human-aligned agents negotiate a purchase without either agent receiving open-ended spending authority. Humans provide policy parameters. Agents choose tactics inside those limits. Deterministic validation shims enforce the limits before any offer, acceptance, or payment leaves the agent runtime.
+---
 
-The MVP protocol is single-issue negotiation over price. Delivery, warranty, substitutions, reputation, and bundles can be represented as terms, but they are not negotiated independently in v1.
+## What You're Building
 
-## Core Principle
+A single ClawHub skill (`bidmesh-negotiate`) that turns any OpenClaw agent into a **buyer or seller** in a deterministic price-negotiation loop. Both sides run locally (simulating A2A over an in-process HTTP server), the validation shim enforces spend caps without any LLM calls, and a minimal Express server acts as the marketplace relay. The demo ends with a logged "settled" deal and a mock x402 payment receipt.
 
-An agent may choose tactics, but it may not alter authority.
+**YC hook:** "Your AI agent can buy things autonomously — but it can never spend more than you told it to."
 
-The LLM can decide whether to offer, counter, accept, wait, or walk. It cannot raise the buyer's maximum price, lower the seller's minimum price, skip required confirmation, or initiate settlement outside the human-approved policy.
+---
 
-## Human Inputs
+## Scope Cuts for 3–4 Hours
 
-### Buyer Intent Parameters
+| Cut | Reason |
+|---|---|
+| Nostr / real Nostr signatures | Replace with UUID pubkeys + SHA-256 HMAC |
+| Real x402 / Base-Sepolia on-chain tx | Return a mock `{ txHash, amount, network }` object |
+| Telegram confirmation UI | Stdout `readline` prompt in the demo script |
+| Parallel seller discovery | Single hardcoded seller |
+| Persistent deal storage | In-memory Map; append-only `audit.log` file |
+| NuffV1 signature verification | Envelope is built and logged, sig field is `"mock"` |
 
-These are provided by the buyer's human, either explicitly or extracted from natural language and confirmed before negotiation begins.
+Everything else from `plan.md` is implemented fully.
 
-```ts
-type BuyerIntent = {
-  item: string;
-  quantity: number;
-  must_have: Record<string, string | number | boolean>;
-  nice_to_have?: Record<string, string | number | boolean>;
+---
 
-  max_price: number;
-  target_price?: number;
-  currency: "USD" | "USDC";
+## File Layout
 
-  deadline?: string;
-  delivery_requirement?: string;
-
-  negotiation_style: "fast" | "balanced" | "patient";
-  max_rounds: number;
-  allow_partial_match: boolean;
-
-  require_human_confirmation_above?: number;
-  require_human_confirmation_before_payment: boolean;
-};
+```
+gaude_v3/
+├── SKILL.md                    ← ClawHub skill descriptor
+├── package.json
+├── tsconfig.json
+├── src/
+│   ├── types.ts                ← BuyerIntent, SellerPolicy, NuffEnvelope, etc.
+│   ├── schemas.ts              ← Zod validators for every request/response
+│   ├── validation.ts           ← Buyer + seller shims (pure functions, no LLM)
+│   ├── heuristics.ts           ← decideBuyerMove / decideSellerMove
+│   ├── audit.ts                ← Append-only audit log writer
+│   ├── seller-server.ts        ← Express: handles all bidmesh.negotiate.* routes
+│   ├── buyer-agent.ts          ← Buyer negotiation loop
+│   └── demo.ts                 ← Wires buyer + seller, runs the demo
+└── tests/
+    ├── schemas.test.ts
+    ├── validation.test.ts
+    ├── heuristics.test.ts
+    └── negotiation.test.ts
 ```
 
-Required for MVP:
+---
 
-- `item`
-- `quantity`
-- `max_price`
-- `currency`
-- `max_rounds`
-- `require_human_confirmation_before_payment`
+## Phase 1 — Project Scaffold (15 min)
 
-Recommended defaults:
+### `package.json`
 
-```ts
-const defaultBuyerIntent = {
-  quantity: 1,
-  currency: "USDC",
-  negotiation_style: "balanced",
-  max_rounds: 3,
-  allow_partial_match: false,
-  require_human_confirmation_before_payment: true
-};
+```json
+{
+  "name": "bidmesh-negotiate",
+  "version": "1.0.0",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "demo": "npx ts-node src/demo.ts"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "zod": "^3.22.4",
+    "uuid": "^9.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3",
+    "ts-node": "^10.9.2",
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.11.0",
+    "vitest": "^1.2.0"
+  }
+}
 ```
 
-### Seller Policy Parameters
+### `tsconfig.json`
 
-These are provided by the seller's human or inventory configuration.
-
-```ts
-type SellerPolicy = {
-  item_id: string;
-  item_name: string;
-  inventory_available: number;
-
-  list_price: number;
-  min_price: number;
-  currency: "USD" | "USDC";
-
-  fulfillment_terms: string;
-  delivery_estimate?: string;
-
-  negotiation_style: "firm" | "balanced" | "eager";
-  max_rounds: number;
-
-  reservation_deadline?: string;
-  require_human_confirmation_below?: number;
-};
+```json
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "commonjs",
+    "strict": true,
+    "outDir": "dist",
+    "rootDir": "src",
+    "esModuleInterop": true
+  }
+}
 ```
 
-Required for MVP:
+---
 
-- `item_id`
-- `item_name`
-- `inventory_available`
-- `list_price`
-- `min_price`
-- `currency`
-- `fulfillment_terms`
-- `max_rounds`
+## Phase 2 — Types and Schemas (30 min)
 
-Recommended defaults:
+### `src/types.ts`
 
+Implement verbatim from `plan.md`:
+- `BuyerIntent`
+- `SellerPolicy`
+- `BuyerStrategy` / `SellerStrategy`
+- `NuffEnvelope<TBody>`
+- `OpenRequest` / `OpenResponse`
+- `CounterRequest` / `CounterResponse`
+- `AcceptRequest` / `AcceptResponse`
+- `WalkRequest` / `WalkResponse`
+- `StatusRequest` / `StatusResponse`
+- `BuyerAuditEntry` / `SellerAuditEntry`
+
+Add one union:
 ```ts
-const defaultSellerPolicy = {
-  currency: "USDC",
-  negotiation_style: "balanced",
-  max_rounds: 3
-};
-```
+export type DealPhase =
+  "open" | "countering" | "accepted" | "settling" | "settled" | "walked";
 
-## Private Strategy
-
-Private strategy fields are never sent to the counterparty. They guide the local agent's offers and counters.
-
-### Buyer Strategy
-
-```ts
-type BuyerStrategy = {
-  opening_offer: number;
-  preferred_price: number;
-  concession_schedule: "linear" | "split_difference" | "slow_then_fast";
-  walkaway_after_rounds: number;
-};
-```
-
-Suggested MVP heuristic:
-
-- Opening offer: `min(target_price ?? max_price * 0.8, max_price)`
-- Accept immediately if seller price is `<= target_price`
-- Counter toward `max_price` over `max_rounds`
-- Walk if the seller price remains above `max_price`
-
-### Seller Strategy
-
-```ts
-type SellerStrategy = {
-  opening_ask: number;
-  preferred_price: number;
-  floor_price: number;
-  concession_schedule: "linear" | "split_difference" | "firm";
-};
-```
-
-Suggested MVP heuristic:
-
-- Opening ask: `list_price`
-- Accept immediately if buyer offer is `>= list_price`
-- Counter down toward `min_price` over `max_rounds`
-- Walk if the buyer offer remains below `min_price`
-
-## Public Protocol: NuffV1
-
-The negotiation layer is NuffV1.
-
-All negotiation messages are JSON-RPC over HTTPS and should be signed by the sending agent's Nostr identity.
-
-### Message Envelope
-
-```ts
-type NuffEnvelope<TBody> = {
-  protocol: "nuff/v1";
+export type Deal = {
   deal_id: string;
-  from_pubkey: string;
-  to_pubkey: string;
+  phase: DealPhase;
   round: number;
-  timestamp: string;
-  expires_at?: string;
-  signature: string;
-  body: TBody;
-};
-```
-
-### Methods
-
-#### `bidmesh.negotiate.open`
-
-Buyer opens a negotiation with a seller.
-
-```ts
-type OpenRequest = {
-  intent_summary: string;
-  item: string;
-  quantity: number;
-  constraints: Record<string, string | number | boolean>;
-  initial_offer: number;
-  currency: "USDC";
-  deadline?: string;
-};
-
-type OpenResponse = {
-  deal_id: string;
-  accepted: boolean;
-  price?: number;
-  counter_price?: number;
-  terms?: string;
-  reason_code?: string;
-};
-```
-
-#### `bidmesh.negotiate.counter`
-
-Either side proposes a new price.
-
-```ts
-type CounterRequest = {
-  deal_id: string;
-  price: number;
-  currency: "USDC";
-  terms?: string;
-};
-
-type CounterResponse = {
-  deal_id: string;
-  accepted: boolean;
-  counter_price?: number;
-  terms?: string;
-  reason_code?: string;
-};
-```
-
-#### `bidmesh.negotiate.accept`
-
-One side accepts the current negotiated price. For settlement, both sides must agree on the same final price.
-
-```ts
-type AcceptRequest = {
-  deal_id: string;
-  accepted_price: number;
-  currency: "USDC";
-  terms: string;
-};
-
-type AcceptResponse = {
-  deal_id: string;
-  accepted: true;
-  settlement_url: string;
-  payment_required: {
-    network: "base-sepolia";
-    asset: "USDC";
-    amount: number;
-    pay_to: string;
-    expires_at: string;
-  };
-};
-```
-
-#### `bidmesh.negotiate.walk`
-
-Either side aborts the negotiation.
-
-```ts
-type WalkRequest = {
-  deal_id: string;
-  reason_code:
-    | "price_too_high"
-    | "price_too_low"
-    | "deadline_mismatch"
-    | "inventory_unavailable"
-    | "round_limit"
-    | "human_confirmation_required"
-    | "validation_denied";
-  note?: string;
-};
-
-type WalkResponse = {
-  deal_id: string;
-  closed: true;
-};
-```
-
-#### `bidmesh.negotiate.status`
-
-Optional read-only method for debugging or recovery.
-
-```ts
-type StatusRequest = {
-  deal_id: string;
-};
-
-type StatusResponse = {
-  deal_id: string;
-  phase: "open" | "countering" | "accepted" | "settling" | "settled" | "walked";
   current_price?: number;
-  round: number;
+  buyer_pubkey: string;
+  seller_pubkey: string;
+  item: string;
+  created_at: string;
   updated_at: string;
 };
 ```
 
-## Negotiation Flow
+### `src/schemas.ts`
 
-### Buyer Flow
+Zod schema for each type. Key rules to encode:
+- `currency` must be `"USDC"` (literal)
+- `price` / `max_price` / `min_price` must be `z.number().positive()`
+- `round` must be `z.number().int().min(1)`
+- `reason_code` must match the union from `WalkRequest`
+- `phase` must match `DealPhase` union
 
-1. Receive natural-language request from the human.
-2. Extract `BuyerIntent`.
-3. Ask the human to confirm the structured intent and spending authority.
-4. Discover candidate sellers through Clawstr/Nostr.
-5. Fetch and validate each seller's Agent Card.
-6. Open negotiation with the best candidate sellers.
-7. Evaluate seller responses against buyer policy and private strategy.
-8. Accept, counter, or walk.
-9. Before acceptance, run the Validation Shim.
-10. Before payment, require human confirmation if policy requires it.
-11. Pay through x402.
-12. Record the deal and notify the human.
+Export `parse*` helpers that throw `ZodError` on invalid input.
 
-### Seller Flow
+**Tests in `tests/schemas.test.ts`:**
+```
+✓ rejects currency "ETH"
+✓ rejects missing price on OpenRequest
+✓ rejects negative quantity
+✓ accepts valid open/counter/accept/walk/status messages
+✓ rejects unknown method name (tested by attempt to parse wrong shape)
+```
 
-1. Receive `bidmesh.negotiate.open`.
-2. Validate message envelope, signature, item match, inventory, and currency.
-3. Evaluate buyer offer against `SellerPolicy`.
-4. Accept, counter, or walk.
-5. Reserve inventory when an offer is accepted.
-6. Return x402 payment challenge.
-7. On payment confirmation, release proof artifact.
-8. Record the deal.
+---
 
-## MVP Tactics
+## Phase 3 — Validation Shims (30 min)
 
-### Buyer Decision Heuristic
+### `src/validation.ts`
 
 ```ts
-function decideBuyerMove({
-  sellerPrice,
-  targetPrice,
-  maxPrice,
-  round,
-  maxRounds
-}) {
-  if (sellerPrice <= targetPrice) return "accept";
-  if (sellerPrice <= maxPrice && round >= maxRounds) return "accept";
-  if (sellerPrice > maxPrice && round >= maxRounds) return "walk";
+export function validateBuyerAction(
+  action: "open" | "counter" | "accept" | "settle",
+  price: number,
+  intent: BuyerIntent,
+  humanConfirmed: boolean
+): ValidationResult
 
-  return "counter";
+export function validateSellerAction(
+  action: "accept" | "counter",
+  price: number,
+  quantity: number,
+  policy: SellerPolicy
+): ValidationResult
+```
+
+Rules exactly from `plan.md`:
+- Buyer: reject if `price > intent.max_price`
+- Buyer: reject settle if `!humanConfirmed && intent.require_human_confirmation_before_payment`
+- Seller: reject accept if `price < policy.min_price`
+- Seller: reject if `quantity > policy.inventory_available`
+- Seller: reject unsupported currencies
+
+Both functions are **pure** — no I/O, no async.
+
+**Tests in `tests/validation.test.ts`:**
+```
+✓ buyer blocks offer of 7 when max_price = 5
+✓ buyer blocks settle without human confirmation
+✓ buyer allows offer of 4.75 when max_price = 5
+✓ seller blocks accept at 3 when min_price = 4.5
+✓ seller blocks quantity 11 when inventory = 10
+✓ seller allows accept at 4.75 when min_price = 4.5
+```
+
+---
+
+## Phase 4 — Heuristics (20 min)
+
+### `src/heuristics.ts`
+
+Implement verbatim from `plan.md`:
+
+```ts
+export function decideBuyerMove(params: {
+  sellerPrice: number;
+  targetPrice: number;
+  maxPrice: number;
+  round: number;
+  maxRounds: number;
+}): "accept" | "counter" | "walk"
+
+export function nextBuyerCounter(
+  openingOffer: number, maxPrice: number,
+  round: number, maxRounds: number
+): number
+
+export function decideSellerMove(params: {
+  buyerPrice: number;
+  listPrice: number;
+  minPrice: number;
+  round: number;
+  maxRounds: number;
+}): "accept" | "counter" | "walk"
+
+export function nextSellerCounter(
+  listPrice: number, minPrice: number,
+  round: number, maxRounds: number
+): number
+```
+
+**Tests in `tests/heuristics.test.ts`:**
+```
+✓ buyer accepts when sellerPrice <= targetPrice
+✓ buyer accepts at maxRounds if sellerPrice <= maxPrice
+✓ buyer walks at maxRounds if sellerPrice > maxPrice
+✓ buyer counters otherwise
+✓ seller accepts when buyerPrice >= listPrice
+✓ seller walks at maxRounds if buyerPrice < minPrice
+✓ nextBuyerCounter never exceeds maxPrice
+✓ nextSellerCounter never goes below minPrice
+```
+
+---
+
+## Phase 5 — Audit Log (15 min)
+
+### `src/audit.ts`
+
+```ts
+export function writeBuyerAudit(entry: BuyerAuditEntry): void
+export function writeSellerAudit(entry: SellerAuditEntry): void
+```
+
+Appends JSON lines to:
+- `buyer/workspace/memory/audit.log`
+- `seller/workspace/memory/audit.log`
+
+Creates directories if absent. Synchronous `fs.appendFileSync` — simple and crash-safe enough for demo.
+
+---
+
+## Phase 6 — Seller HTTP Server (30 min)
+
+### `src/seller-server.ts`
+
+Express app on `PORT=3001`. In-memory `deals: Map<string, Deal>`.
+
+#### Routes
+
+| Method | Path | Handler |
+|---|---|---|
+| `POST` | `/rpc` | Dispatch by `method` field |
+
+Dispatcher reads `envelope.body.method` (or top-level `method`) and routes to:
+
+**`bidmesh.negotiate.open`**
+1. Parse + validate `OpenRequest` with Zod.
+2. Run `validateSellerAction("counter", openRequest.initial_offer, openRequest.quantity, policy)`.
+3. Run `decideSellerMove`.
+4. Create `Deal` record, store in map.
+5. Return `OpenResponse` with `counter_price` or `accepted: true`.
+6. Write seller audit entry.
+
+**`bidmesh.negotiate.counter`**
+1. Look up deal by `deal_id`.
+2. Validate round limit (`deal.round >= policy.max_rounds → walk`).
+3. Run `decideSellerMove` with updated round.
+4. Update deal, write audit.
+5. Return `CounterResponse`.
+
+**`bidmesh.negotiate.accept`**
+1. Run `validateSellerAction("accept", accepted_price, ...)`.
+2. If blocked → return walk response + write audit blocked entry.
+3. Reserve inventory (`policy.inventory_available -= quantity`).
+4. Return `AcceptResponse` with mock x402 payment challenge:
+```json
+{
+  "payment_required": {
+    "network": "base-sepolia",
+    "asset": "USDC",
+    "amount": 4.75,
+    "pay_to": "0xMOCK_SELLER_WALLET",
+    "expires_at": "<ISO + 10 min>"
+  },
+  "settlement_url": "http://localhost:3001/settle/<deal_id>"
 }
 ```
 
-Counter price:
+**`bidmesh.negotiate.walk`**
+1. Mark deal `walked`, release inventory if reserved.
+2. Write audit. Return `WalkResponse`.
 
-```ts
-nextBuyerCounter = min(
-  maxPrice,
-  openingOffer + ((maxPrice - openingOffer) * round) / maxRounds
-);
+**`bidmesh.negotiate.status`**
+1. Return current `Deal` as `StatusResponse`.
+
+**`POST /settle/:deal_id`**
+1. Mark deal `settled`.
+2. Return mock proof:
+```json
+{ "txHash": "0xMOCK...", "artifact": "redemption-code-ABC123" }
 ```
 
-### Seller Decision Heuristic
+---
+
+## Phase 7 — Buyer Agent (30 min)
+
+### `src/buyer-agent.ts`
 
 ```ts
-function decideSellerMove({
-  buyerPrice,
-  listPrice,
-  minPrice,
-  round,
-  maxRounds
-}) {
-  if (buyerPrice >= listPrice) return "accept";
-  if (buyerPrice >= minPrice && round >= maxRounds) return "accept";
-  if (buyerPrice < minPrice && round >= maxRounds) return "walk";
-
-  return "counter";
-}
+export async function runBuyerNegotiation(
+  intent: BuyerIntent,
+  strategy: BuyerStrategy,
+  sellerUrl: string,
+  sellerPubkey: string,
+  askForHumanConfirmation: (summary: string) => Promise<boolean>
+): Promise<{ settled: boolean; deal?: Deal; txHash?: string }>
 ```
 
-Counter price:
+Loop:
 
-```ts
-nextSellerCounter = max(
-  minPrice,
-  listPrice - ((listPrice - minPrice) * round) / maxRounds
-);
+1. Build `NuffEnvelope<OpenRequest>`, validate with buyer shim.
+2. POST to `sellerUrl/rpc` with method `bidmesh.negotiate.open`.
+3. Parse `OpenResponse`.
+4. Enter negotiation loop (max `intent.max_rounds` iterations):
+   - If `accepted`: proceed to human confirmation step.
+   - If `counter_price`:
+     - Run `decideBuyerMove`.
+     - If `accept` → POST `bidmesh.negotiate.accept`.
+     - If `counter` → compute `nextBuyerCounter`, validate with shim, POST `bidmesh.negotiate.counter`.
+     - If `walk` → POST `bidmesh.negotiate.walk`, return `{ settled: false }`.
+5. Human confirmation step:
+   - Format summary string.
+   - Call `askForHumanConfirmation(summary)`.
+   - If denied → POST walk, return `{ settled: false }`.
+   - If confirmed → POST to `/settle/:deal_id`.
+6. Return `{ settled: true, deal, txHash }`.
+
+Every outbound call runs through `validateBuyerAction` first. Any `{ allow: false }` result → write blocked audit entry → POST walk.
+
+---
+
+## Phase 8 — Demo Script (20 min)
+
+### `src/demo.ts`
+
+1. Define the hardcoded seller policy (USB-C cable from `plan.md`).
+2. Start the seller Express server on port 3001.
+3. Define the buyer intent (from `plan.md`).
+4. Define `askForHumanConfirmation` using `readline` (stdout prompt).
+5. Call `runBuyerNegotiation`.
+6. Print the full negotiation transcript and final deal record.
+7. Exit.
+
+Expected output:
 ```
+[Buyer] Opening at 4.00 USDC
+[Seller] Counter: 5.50 USDC
+[Buyer] Counter: 4.33 USDC
+[Seller] Counter: 4.83 USDC
+[Buyer] Counter: 4.67 USDC
+[Seller] Accept: 4.75 USDC
 
-## Validation Shims
-
-### Buyer Validation Shim
-
-The buyer shim is mandatory. It runs before every outbound A2A call and before every x402 settlement call.
-
-Rules:
-
-- Reject any opening offer above `BuyerIntent.max_price`.
-- Reject any counter above `BuyerIntent.max_price`.
-- Reject any acceptance above `BuyerIntent.max_price`.
-- Reject settlement if the payment amount differs from the accepted price.
-- Reject settlement if human confirmation is required and missing.
-- Log every rejection to `buyer/workspace/memory/audit.log`.
-
-Pure function:
-
-```ts
-type ValidationResult =
-  | { allow: true }
-  | { allow: false; reason: string };
-
-function validateBuyerAction(action, sessionPolicy): ValidationResult {
-  // No LLM calls. No natural-language parsing. Numeric checks only.
-}
-```
-
-### Seller Validation Shim
-
-The seller shim is recommended for MVP and required for production.
-
-Rules:
-
-- Reject any acceptance below `SellerPolicy.min_price`.
-- Reject any accepted quantity above available inventory.
-- Reject unsupported currencies.
-- Reject expired reservations.
-- Log every rejection to `seller/workspace/memory/audit.log`.
-
-## Audit Log
-
-Every negotiation should produce an append-only local audit trail.
-
-Minimum buyer audit fields:
-
-```ts
-type BuyerAuditEntry = {
-  timestamp: string;
-  session_id: string;
-  deal_id: string;
-  counterparty_pubkey: string;
-  action: "open" | "counter" | "accept" | "walk" | "settle" | "blocked";
-  attempted_price?: number;
-  accepted_price?: number;
-  cap: number;
-  allowed: boolean;
-  reason?: string;
-};
-```
-
-Minimum seller audit fields:
-
-```ts
-type SellerAuditEntry = {
-  timestamp: string;
-  deal_id: string;
-  counterparty_pubkey: string;
-  action: "open_received" | "counter" | "accept" | "walk" | "blocked" | "settled";
-  attempted_price?: number;
-  floor: number;
-  allowed: boolean;
-  reason?: string;
-};
-```
-
-## Human Confirmation Rules
-
-The buyer agent must ask for confirmation before payment in the MVP.
-
-Recommended Telegram confirmation:
-
-```text
 Confirm purchase?
+  Item: USB-C cable
+  Seller: mock-seller-pubkey
+  Final price: 4.75 USDC
+  Delivery: redemption code immediately
 
-Item: USB-C cable
-Seller: 0x4a3f...c0de
-Final price: 4.75 USDC
-Delivery: redemption code immediately
+Reply y to pay or n to cancel: y
 
-Reply /confirm to pay or /stop to cancel.
+[Settled] txHash: 0xMOCKABC123
+[Artifact] redemption-code-ABC123
 ```
 
-The agent may negotiate before confirmation only if the user has confirmed the original spending authority. It may not settle without confirmation unless `require_human_confirmation_before_payment` is explicitly false.
+---
 
-## Implementation Phases
+## Phase 9 — Integration Test (20 min)
 
-### Phase 1: Types and Schemas
+### `tests/negotiation.test.ts`
 
-- Add NuffV1 method names and TypeScript types in `shared/a2a-protocol.ts`.
-- Add zod validators for every public request and response.
-- Add shared reason-code constants.
-- Add unit tests for schema validation.
+Four scenarios, fully in-process (start seller server on a random port, run buyer):
 
-Acceptance:
+| Scenario | Buyer max | Seller min | Expected |
+|---|---|---|---|
+| Happy path | 5.00 | 4.50 | settled at ≤ 5.00, ≥ 4.50 |
+| Buyer cap too low | 3.00 | 4.50 | walked (buyer walks round limit) |
+| Seller floor too high | 5.00 | 6.00 | walked (no overlap) |
+| Shim blocks forced 7 USDC | 5.00 | 4.50 | blocked entry in audit.log, no settlement |
 
-- Invalid currencies are rejected.
-- Missing prices are rejected.
-- Unknown method names are rejected.
-- Valid `open`, `counter`, `accept`, `walk`, and `status` messages parse cleanly.
+The shim-block test injects a mutated buyer that tries to offer 7 USDC, confirming the shim fires before the HTTP call.
 
-### Phase 2: Buyer Policy Extraction
+---
 
-- Extract `BuyerIntent` from Telegram input.
-- Echo structured parameters back to the human.
-- Require confirmation before discovery/negotiation.
-- Store confirmed policy in the active session record.
+## Phase 10 — SKILL.md (15 min)
 
-Acceptance:
+```markdown
+---
+name: bidmesh-negotiate
+description: >
+  Agent-to-agent price negotiation with human-guardrailed spend caps.
+  Buyer and seller agents settle a deal autonomously within human-defined
+  policy limits. No LLM call can exceed the buyer's max_price or the
+  seller's min_price.
+version: 1.0.0
+metadata:
+  openclaw:
+    requires:
+      bins:
+        - node
+        - npx
+    envVars:
+      - name: SELLER_URL
+        required: false
+        description: URL of the seller negotiation server (default localhost:3001)
+      - name: BUYER_MAX_PRICE
+        required: false
+        description: Override max price at runtime
+---
 
-- `"find me a USB-C cable under $5"` creates `max_price = 5`.
-- The agent does not contact sellers before confirmation.
-- The session record survives through negotiation.
+# BidMesh Negotiate
 
-### Phase 3: Seller Policy and Pricing
+A deterministic price-negotiation skill for OpenClaw agents.
 
-- Define seller inventory with `list_price`, `min_price`, and fulfillment terms.
-- Implement deterministic seller pricing.
-- Add seller-side validation for floor price and inventory.
+## What This Skill Does
 
-Acceptance:
+- Extracts a BuyerIntent from natural language and confirms it with the human
+- Runs a capped negotiation loop against a NuffV1-compatible seller endpoint
+- Blocks any offer, counter, or acceptance that exceeds the human-set spend cap
+- Requires human confirmation before any payment settlement
+- Produces an append-only audit log of every action
 
-- Seller counters above `min_price`.
-- Seller never accepts below `min_price`.
-- Seller walks after `max_rounds`.
+## Usage
 
-### Phase 4: A2A Negotiation Loop
+Install and run the demo:
 
-- Implement `bidmesh.negotiate.open`.
-- Implement `bidmesh.negotiate.counter`.
-- Implement `bidmesh.negotiate.accept`.
-- Implement `bidmesh.negotiate.walk`.
-- Add deal state tracking by `deal_id`.
+\```
+clawhub install bidmesh-negotiate
+npm install && npm run demo
+\```
 
-Acceptance:
+## Key Guarantees
 
-- Buyer and seller can complete a deal at or below buyer cap and at or above seller floor.
-- Buyer walks when seller remains above cap.
-- Seller walks when buyer remains below floor.
+1. The agent cannot spend above `max_price` — enforced by a pure validation
+   shim that runs before every outbound call, not by an LLM instruction.
+2. No payment is initiated without explicit human confirmation (unless
+   `require_human_confirmation_before_payment: false`).
+3. Every blocked action is written to `buyer/workspace/memory/audit.log`.
 
-### Phase 5: Validation Shim
+## Protocol
 
-- Add buyer `before_tool_call` validation.
-- Block outbound bids above cap.
-- Block final acceptance above cap.
-- Block settlement mismatch.
-- Write append-only audit entries.
+Uses NuffV1: JSON-RPC over HTTPS with methods:
+- `bidmesh.negotiate.open`
+- `bidmesh.negotiate.counter`
+- `bidmesh.negotiate.accept`
+- `bidmesh.negotiate.walk`
+- `bidmesh.negotiate.status`
 
-Acceptance:
-
-- With `max_price = 5`, a forced `7 USDC` acceptance is blocked.
-- The blocked attempt appears in `buyer/workspace/memory/audit.log`.
-- No x402 settlement is attempted after a blocked action.
-
-### Phase 6: x402 Settlement
-
-- Seller returns x402 payment challenge after accept.
-- Buyer signs and sends payment.
-- Seller verifies payment and returns proof artifact.
-- Buyer records settled deal.
-
-Acceptance:
-
-- A successful deal produces a testnet tx hash.
-- The deal record includes intent, seller pubkey, final price, tx hash, and artifact.
-- Telegram notification includes the final settlement summary.
-
-## Example Successful Negotiation
-
-Buyer human:
-
-```text
-Find me a USB-C cable under $5.
+See `src/types.ts` for full TypeScript definitions.
 ```
 
-Buyer policy:
+---
 
-```json
-{
-  "item": "USB-C cable",
-  "quantity": 1,
-  "max_price": 5,
-  "target_price": 4,
-  "currency": "USDC",
-  "max_rounds": 3,
-  "require_human_confirmation_before_payment": true
-}
+## Build Order (Strict Sequence)
+
+```
+Hour 1:  Phase 1 (scaffold) → Phase 2 (types + schemas) → Phase 3 (validation shims)
+Hour 2:  Phase 4 (heuristics) → Phase 5 (audit) → Phase 6 (seller server)
+Hour 3:  Phase 7 (buyer agent) → Phase 8 (demo script)
+Hour 4:  Phase 9 (integration tests) → Phase 10 (SKILL.md) → clawhub publish dry-run
 ```
 
-Seller policy:
+If time runs short, cut Phase 9 last — the demo script is the YC pitch artifact, not the tests.
 
-```json
-{
-  "item_id": "cable-usbc-001",
-  "item_name": "USB-C cable",
-  "list_price": 6,
-  "min_price": 4.5,
-  "currency": "USDC",
-  "inventory_available": 10,
-  "fulfillment_terms": "redemption code immediately",
-  "max_rounds": 3
-}
+---
+
+## Test Commands
+
+```bash
+npm test                          # vitest: unit + integration
+npm run demo                      # live negotiation demo
+npx ts-node src/demo.ts           # same, without build step
 ```
 
-Negotiation:
-
-```text
-Buyer opens at 4.00
-Seller counters at 5.50
-Buyer counters at 4.50
-Seller counters at 4.75
-Buyer accepts at 4.75
-Human confirms payment
-Buyer pays 4.75 USDC through x402
-Seller returns redemption code
+Expected test output:
+```
+✓ schemas: 9 tests
+✓ validation: 6 tests
+✓ heuristics: 8 tests
+✓ negotiation: 4 tests (integration)
 ```
 
-## Example Blocked Negotiation
+---
 
-Buyer cap:
+## ClawHub Publish (After Demo Works)
 
-```json
-{ "max_price": 5 }
+```bash
+clawhub publish . \
+  --slug bidmesh-negotiate \
+  --name "BidMesh Negotiate" \
+  --version 1.0.0 \
+  --tags latest marketplace negotiation a2a payments
 ```
 
-Seller final ask:
+---
 
-```json
-{ "accepted_price": 7 }
-```
+## YC Demo Script (2-Minute Pitch)
 
-Buyer shim result:
+1. Show `plan.md` — "Here's the protocol. Agents negotiate, humans set the rules."
+2. Run `npm run demo` live — show the back-and-forth log.
+3. At the confirmation prompt, type `n` first — show it walks cleanly.
+4. Run again, type `y` — show settlement and mock tx hash.
+5. `cat buyer/workspace/memory/audit.log` — show the audit trail.
+6. "This is one skill installable with `clawhub install bidmesh-negotiate`. Any OpenClaw agent becomes a buyer or seller in under 5 minutes."
 
-```json
-{
-  "allow": false,
-  "reason": "accepted_price_exceeds_max_price"
-}
-```
+---
 
-Required behavior:
+## Sources
 
-- Buyer sends `bidmesh.negotiate.walk`.
-- No settlement is attempted.
-- Audit log records attempted price `7` and cap `5`.
-
-## Open Questions
-
-- Should `target_price` be shown to the user during confirmation or treated as an internal strategy value?
-- Should sellers support temporary inventory reservations before payment?
-- Should NuffV1 require signatures in the first MVP, or only after the A2A loop is stable?
-- Should buyer agents negotiate with sellers serially or in small parallel batches?
-- Should human confirmation happen only before payment, or also before accepting a final price?
-
-## MVP Recommendation
-
-For the four-day MVP:
-
-- Use single-issue price negotiation only.
-- Require human confirmation before payment.
-- Keep buyer `max_price` and seller `min_price` private.
-- Use deterministic buyer and seller heuristics.
-- Enforce caps and floors with validation shims, not LLM prompts.
-- Log every outbound offer, counter, accept, walk, block, and settlement.
-- Set `max_rounds = 3`.
-- Walk quickly when the price boundaries do not overlap.
+- [ClawHub — OpenClaw Skill Directory](https://github.com/openclaw/clawhub)
+- [Skills — OpenClaw Docs](https://docs.openclaw.ai/tools/skills)
+- [SKILL.md format spec](https://github.com/openclaw/clawhub/blob/main/docs/skill-format.md)
+- [x402 Protocol — Coinbase Developer Docs](https://docs.cdp.coinbase.com/x402/welcome)
+- [x402 and Agentic Commerce — AWS Blog](https://aws.amazon.com/blogs/industries/x402-and-agentic-commerce-redefining-autonomous-payments-in-financial-services/)
+- [OpenClaw Hooks — Agent Guardrails Guide](https://openclawsanctuary.com/hooks)
+- [ClawHub PyPI](https://pypi.org/project/clawhub/)
