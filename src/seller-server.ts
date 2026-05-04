@@ -5,7 +5,7 @@ import {
   acceptRpcRequestSchema,
   counterRpcRequestSchema,
   openRpcRequestSchema,
-  settleRequestSchema,
+  settleRpcRequestSchema,
   statusRpcRequestSchema,
   walkRpcRequestSchema
 } from "./schemas";
@@ -28,6 +28,8 @@ import type {
   SellerAuditEntry,
   SellerPolicy,
   SignedRpcEnvelope,
+  SignedSettlementEnvelope,
+  SettleRequest,
   StatusResponse,
   WalkRequest
 } from "./types";
@@ -54,6 +56,7 @@ type SellerState = {
 };
 
 type VerifiedEnvelope<TBody> = SignedRpcEnvelope & { body: TBody };
+type VerifiedSettlementEnvelope = SignedSettlementEnvelope;
 
 function addMinutes(timestamp: string, minutes: number): string {
   return new Date(new Date(timestamp).getTime() + minutes * 60_000).toISOString();
@@ -91,6 +94,35 @@ function pruneFingerprints(state: SellerState, nowMs: number): void {
 
 function canonicalizeTimestamp(timestamp: string): number {
   return new Date(timestamp).getTime();
+}
+
+function cloneDealState(deal: Deal): Deal {
+  return {
+    ...deal,
+    buyer_constraints: { ...deal.buyer_constraints },
+    payment_required: deal.payment_required ? { ...deal.payment_required } : undefined,
+    proof_artifact: deal.proof_artifact ? { ...deal.proof_artifact } : undefined
+  };
+}
+
+function restoreDealState(target: Deal, snapshot: Deal): void {
+  const snapshotKeys = new Set(Object.keys(snapshot));
+  for (const key of Object.keys(target) as Array<keyof Deal>) {
+    if (!snapshotKeys.has(key)) {
+      delete target[key];
+    }
+  }
+
+  Object.assign(target, cloneDealState(snapshot));
+}
+
+function walkedStatusResponse(dealId: string, now: () => string): StatusResponse {
+  return {
+    deal_id: dealId,
+    phase: "walked",
+    round: 0,
+    updated_at: now()
+  };
 }
 
 async function writeAudit(path: string, entry: SellerAuditEntry): Promise<void> {
@@ -174,8 +206,23 @@ function buildEnvelopeForSignature<TBody>(request: VerifiedEnvelope<TBody>) {
       | OpenRequest
       | CounterRequest
       | AcceptRequest
+      | SettleRequest
       | WalkRequest
       | { deal_id: string }
+  };
+}
+
+function buildSettlementEnvelopeForSignature(request: VerifiedSettlementEnvelope) {
+  return {
+    protocol: request.protocol,
+    method: request.method,
+    deal_id: request.deal_id,
+    from_pubkey: request.from_pubkey,
+    to_pubkey: request.to_pubkey,
+    round: request.round,
+    timestamp: request.timestamp,
+    expires_at: request.expires_at,
+    body: request.body
   };
 }
 
@@ -232,6 +279,54 @@ function verifyEnvelope<TBody>(
   return { ok: true, fingerprint };
 }
 
+function verifySettlementEnvelope(
+  request: VerifiedSettlementEnvelope,
+  state: SellerState,
+  providedAuthToken: string | undefined,
+  options: SellerServerOptions & {
+    sellerPubkey: string;
+    buyerSecrets: Record<string, string>;
+    now: () => string;
+    maxClockSkewMs: number;
+    replayTtlMs: number;
+  }
+): { ok: true; fingerprint: string } | { ok: false; reason: DealReasonCode } {
+  const secret = options.buyerSecrets[request.from_pubkey];
+  if (!secret || !providedAuthToken || request.to_pubkey !== options.sellerPubkey) {
+    return { ok: false, reason: "validation_denied" };
+  }
+
+  const timestampMs = canonicalizeTimestamp(request.timestamp);
+  const nowMs = canonicalizeTimestamp(options.now());
+  if (Number.isNaN(timestampMs) || Math.abs(nowMs - timestampMs) > options.maxClockSkewMs) {
+    return { ok: false, reason: "validation_denied" };
+  }
+
+  if (request.expires_at) {
+    const expiresMs = canonicalizeTimestamp(request.expires_at);
+    if (Number.isNaN(expiresMs) || expiresMs < nowMs) {
+      return { ok: false, reason: "reservation_expired" };
+    }
+  }
+
+  if (!verifyMockAuthToken(buildSettlementEnvelopeForSignature(request), providedAuthToken, secret)) {
+    return { ok: false, reason: "validation_denied" };
+  }
+
+  pruneFingerprints(state, nowMs);
+  const fingerprint = createRequestFingerprint(buildSettlementEnvelopeForSignature(request));
+  if (state.seenFingerprints.has(fingerprint)) {
+    return { ok: false, reason: "replay_detected" };
+  }
+
+  const ttlBase = request.expires_at
+    ? canonicalizeTimestamp(request.expires_at)
+    : nowMs + options.replayTtlMs;
+  state.seenFingerprints.set(fingerprint, ttlBase);
+
+  return { ok: true, fingerprint };
+}
+
 function invalidFollowUpReason(
   deal: Deal,
   fromPubkey: string,
@@ -271,6 +366,8 @@ async function blockExistingDeal(input: {
   now: () => string;
 }): Promise<void> {
   const phaseBefore = input.deal.phase;
+  const dealSnapshot = cloneDealState(input.deal);
+  const inventorySnapshot = input.state.availableInventory;
   if (input.closeDeal) {
     releaseReservation(input.state, input.deal);
     input.deal.phase = "walked";
@@ -278,28 +375,34 @@ async function blockExistingDeal(input: {
     input.deal.updated_at = input.now();
   }
 
-  await logAuditEvent({
-    auditLogPath: input.auditLogPath,
-    dealId: input.deal.deal_id,
-    counterpartyPubkey: input.counterpartyPubkey,
-    action: "blocked",
-    method: input.method,
-    requestRound: input.requestRound,
-    phaseBefore,
-    phaseAfter: input.closeDeal ? input.deal.phase : phaseBefore,
-    fromPubkey: input.fromPubkey,
-    toPubkey: input.toPubkey,
-    envelopeTimestamp: input.envelopeTimestamp,
-    envelopeExpiresAt: input.envelopeExpiresAt,
-    quantity: input.deal.quantity,
-    attemptedPrice: input.attemptedPrice,
-    terms: input.terms,
-    floor: input.floor,
-    allowed: false,
-    reason: input.reason,
-    requestFingerprint: input.requestFingerprint,
-    now: input.now
-  });
+  try {
+    await logAuditEvent({
+      auditLogPath: input.auditLogPath,
+      dealId: input.deal.deal_id,
+      counterpartyPubkey: input.counterpartyPubkey,
+      action: "blocked",
+      method: input.method,
+      requestRound: input.requestRound,
+      phaseBefore,
+      phaseAfter: input.closeDeal ? input.deal.phase : phaseBefore,
+      fromPubkey: input.fromPubkey,
+      toPubkey: input.toPubkey,
+      envelopeTimestamp: input.envelopeTimestamp,
+      envelopeExpiresAt: input.envelopeExpiresAt,
+      quantity: input.deal.quantity,
+      attemptedPrice: input.attemptedPrice,
+      terms: input.terms,
+      floor: input.floor,
+      allowed: false,
+      reason: input.reason,
+      requestFingerprint: input.requestFingerprint,
+      now: input.now
+    });
+  } catch (error) {
+    input.state.availableInventory = inventorySnapshot;
+    restoreDealState(input.deal, dealSnapshot);
+    throw error;
+  }
 }
 
 export function createSellerServer(
@@ -422,20 +525,33 @@ export function createSellerServer(
         default:
           return res.status(400).json({ error: "unknown_method" });
       }
-    } catch (error) {
+    } catch {
       return res.status(400).json({
-        error: error instanceof Error ? error.message : "invalid_request"
+        error: "invalid_request"
       });
     }
   });
 
   app.post("/settle/:deal_id", async (req, res) => {
     try {
-      const request = settleRequestSchema.parse(req.body);
+      const request = settleRpcRequestSchema.parse(req.body);
       const dealId = String(req.params.deal_id);
+      if (dealId !== request.deal_id) {
+        return res.status(400).json({ error: "invalid_request" });
+      }
+      const verification = verifySettlementEnvelope(
+        request,
+        state,
+        readAuthToken(req.headers[options.authHeaderName]),
+        options
+      );
+      if (!verification.ok) {
+        return res.json({ deal_id: dealId, closed: true });
+      }
+
       const deal = state.deals.get(dealId);
       if (!deal) {
-        return res.status(404).json({ error: "deal_not_found" });
+        return res.json({ deal_id: dealId, closed: true });
       }
 
       const nowTimestamp = options.now();
@@ -444,47 +560,50 @@ export function createSellerServer(
 
       if (
         deal.phase !== "accepted" ||
-        deal.current_price !== request.accepted_price ||
-        request.buyer_pubkey !== deal.buyer_pubkey
+        deal.current_price !== request.body.accepted_price ||
+        request.body.buyer_pubkey !== deal.buyer_pubkey ||
+        request.from_pubkey !== deal.buyer_pubkey
       ) {
         await logAuditEvent({
           auditLogPath: options.auditLogPath,
           dealId,
-          counterpartyPubkey: request.buyer_pubkey,
+          counterpartyPubkey: request.body.buyer_pubkey,
           action: "blocked",
           method: "settle",
           phaseBefore,
           phaseAfter: phaseBefore,
-          fromPubkey: request.buyer_pubkey,
+          fromPubkey: request.from_pubkey,
           toPubkey: options.sellerPubkey,
           quantity: deal.quantity,
-          attemptedPrice: request.accepted_price,
+          attemptedPrice: request.body.accepted_price,
           terms: deal.seller_terms,
           floor: policy.min_price,
           allowed: false,
           reason: "settlement_amount_mismatch",
+          requestFingerprint: verification.fingerprint,
           now: options.now
         });
         return res.json({ deal_id: dealId, closed: true });
       }
 
-      if (!request.human_confirmation) {
+      if (!request.body.human_confirmation) {
         await logAuditEvent({
           auditLogPath: options.auditLogPath,
           dealId,
-          counterpartyPubkey: request.buyer_pubkey,
+          counterpartyPubkey: request.body.buyer_pubkey,
           action: "blocked",
           method: "settle",
           phaseBefore,
           phaseAfter: phaseBefore,
-          fromPubkey: request.buyer_pubkey,
+          fromPubkey: request.from_pubkey,
           toPubkey: options.sellerPubkey,
           quantity: deal.quantity,
-          attemptedPrice: request.accepted_price,
+          attemptedPrice: request.body.accepted_price,
           terms: deal.seller_terms,
           floor: policy.min_price,
           allowed: false,
           reason: "human_confirmation_required",
+          requestFingerprint: verification.fingerprint,
           now: options.now
         });
         return res.json({ deal_id: dealId, closed: true });
@@ -495,11 +614,37 @@ export function createSellerServer(
           state,
           deal,
           auditLogPath: options.auditLogPath,
-          counterpartyPubkey: request.buyer_pubkey,
+          counterpartyPubkey: request.body.buyer_pubkey,
           floor: policy.min_price,
           reason: "validation_denied",
           method: "settle",
-          attemptedPrice: request.accepted_price,
+          attemptedPrice: request.body.accepted_price,
+          fromPubkey: request.from_pubkey,
+          toPubkey: request.to_pubkey,
+          envelopeTimestamp: request.timestamp,
+          envelopeExpiresAt: request.expires_at,
+          requestFingerprint: verification.fingerprint,
+          closeDeal: true,
+          now: options.now
+        });
+        return res.json({ deal_id: dealId, closed: true });
+      }
+
+      if (deal.payment_required.settlement_nonce !== request.body.settlement_nonce) {
+        await blockExistingDeal({
+          state,
+          deal,
+          auditLogPath: options.auditLogPath,
+          counterpartyPubkey: request.body.buyer_pubkey,
+          floor: policy.min_price,
+          reason: "validation_denied",
+          method: "settle",
+          attemptedPrice: request.body.accepted_price,
+          fromPubkey: request.from_pubkey,
+          toPubkey: request.to_pubkey,
+          envelopeTimestamp: request.timestamp,
+          envelopeExpiresAt: request.expires_at,
+          requestFingerprint: verification.fingerprint,
           closeDeal: true,
           now: options.now
         });
@@ -512,11 +657,16 @@ export function createSellerServer(
           state,
           deal,
           auditLogPath: options.auditLogPath,
-          counterpartyPubkey: request.buyer_pubkey,
+          counterpartyPubkey: request.body.buyer_pubkey,
           floor: policy.min_price,
           reason: "reservation_expired",
           method: "settle",
-          attemptedPrice: request.accepted_price,
+          attemptedPrice: request.body.accepted_price,
+          fromPubkey: request.from_pubkey,
+          toPubkey: request.to_pubkey,
+          envelopeTimestamp: request.timestamp,
+          envelopeExpiresAt: request.expires_at,
+          requestFingerprint: verification.fingerprint,
           closeDeal: true,
           now: options.now
         });
@@ -530,11 +680,16 @@ export function createSellerServer(
             state,
             deal,
             auditLogPath: options.auditLogPath,
-            counterpartyPubkey: request.buyer_pubkey,
+            counterpartyPubkey: request.body.buyer_pubkey,
             floor: policy.min_price,
             reason: "deadline_mismatch",
             method: "settle",
-            attemptedPrice: request.accepted_price,
+            attemptedPrice: request.body.accepted_price,
+            fromPubkey: request.from_pubkey,
+            toPubkey: request.to_pubkey,
+            envelopeTimestamp: request.timestamp,
+            envelopeExpiresAt: request.expires_at,
+            requestFingerprint: verification.fingerprint,
             closeDeal: true,
             now: options.now
           });
@@ -546,8 +701,8 @@ export function createSellerServer(
         {
           type: "settle",
           quantity: deal.quantity,
-          currency: request.currency,
-          accepted_price: request.accepted_price,
+          currency: request.body.currency,
+          accepted_price: request.body.accepted_price,
           now: nowTimestamp
         },
         {
@@ -561,17 +716,23 @@ export function createSellerServer(
           state,
           deal,
           auditLogPath: options.auditLogPath,
-          counterpartyPubkey: request.buyer_pubkey,
+          counterpartyPubkey: request.body.buyer_pubkey,
           floor: policy.min_price,
           reason: validation.reason as DealReasonCode,
           method: "settle",
-          attemptedPrice: request.accepted_price,
+          attemptedPrice: request.body.accepted_price,
+          fromPubkey: request.from_pubkey,
+          toPubkey: request.to_pubkey,
+          envelopeTimestamp: request.timestamp,
+          envelopeExpiresAt: request.expires_at,
+          requestFingerprint: verification.fingerprint,
           closeDeal: true,
           now: options.now
         });
         return res.json({ deal_id: dealId, closed: true });
       }
 
+      const dealSnapshot = cloneDealState(deal);
       deal.phase = "settled";
       deal.tx_hash = `0xmock${dealId.replace(/-/g, "").slice(0, 12)}`;
       deal.proof_artifact = {
@@ -581,24 +742,31 @@ export function createSellerServer(
       };
       deal.updated_at = nowTimestamp;
 
-      await logAuditEvent({
-        auditLogPath: options.auditLogPath,
-        dealId,
-        counterpartyPubkey: request.buyer_pubkey,
-        action: "settled",
-        method: "settle",
-        phaseBefore,
-        phaseAfter: deal.phase,
-        fromPubkey: request.buyer_pubkey,
-        toPubkey: options.sellerPubkey,
-        quantity: deal.quantity,
-        attemptedPrice: request.accepted_price,
-        terms: deal.seller_terms,
-        floor: policy.min_price,
-        allowed: true,
-        requestFingerprint: deal.request_fingerprint,
-        now: options.now
-      });
+      try {
+        await logAuditEvent({
+          auditLogPath: options.auditLogPath,
+          dealId,
+          counterpartyPubkey: request.body.buyer_pubkey,
+          action: "settled",
+          method: "settle",
+          phaseBefore,
+          phaseAfter: deal.phase,
+          fromPubkey: request.from_pubkey,
+          toPubkey: options.sellerPubkey,
+          envelopeTimestamp: request.timestamp,
+          envelopeExpiresAt: request.expires_at,
+          quantity: deal.quantity,
+          attemptedPrice: request.body.accepted_price,
+          terms: deal.seller_terms,
+          floor: policy.min_price,
+          allowed: true,
+          requestFingerprint: verification.fingerprint,
+          now: options.now
+        });
+      } catch (error) {
+        restoreDealState(deal, dealSnapshot);
+        throw error;
+      }
 
       return res.json({
         deal_id: dealId,
@@ -606,9 +774,9 @@ export function createSellerServer(
         tx_hash: deal.tx_hash,
         proof_artifact: deal.proof_artifact
       });
-    } catch (error) {
+    } catch {
       return res.status(400).json({
-        error: error instanceof Error ? error.message : "invalid_request"
+        error: "invalid_request"
       });
     }
   });
@@ -803,43 +971,15 @@ async function handleOpen(
   deal.round = sellerRound;
   state.deals.set(dealId, deal);
 
-  await logAuditEvent({
-    auditLogPath: options.auditLogPath,
-    dealId,
-    counterpartyPubkey: request.from_pubkey,
-    action: "open_received",
-    method: request.method,
-    requestRound: request.round,
-    phaseBefore: "none",
-    phaseAfter: deal.phase,
-    fromPubkey: request.from_pubkey,
-    toPubkey: request.to_pubkey,
-    envelopeTimestamp: request.timestamp,
-    envelopeExpiresAt: request.expires_at,
-    quantity: request.body.quantity,
-    attemptedPrice: request.body.initial_offer,
-    terms: request.body.intent_summary,
-    floor: policy.min_price,
-    allowed: true,
-    requestFingerprint: fingerprint,
-    now: options.now
-  });
-
-  if (decision === "accept") {
-    const phaseBefore = deal.phase;
-    deal.phase = "countering";
-    deal.current_price = request.body.initial_offer;
-    deal.seller_terms = policy.fulfillment_terms;
-    deal.updated_at = options.now();
-
+  try {
     await logAuditEvent({
       auditLogPath: options.auditLogPath,
       dealId,
       counterpartyPubkey: request.from_pubkey,
-      action: "seller_accepted_offer",
+      action: "open_received",
       method: request.method,
       requestRound: request.round,
-      phaseBefore,
+      phaseBefore: "none",
       phaseAfter: deal.phase,
       fromPubkey: request.from_pubkey,
       toPubkey: request.to_pubkey,
@@ -847,12 +987,51 @@ async function handleOpen(
       envelopeExpiresAt: request.expires_at,
       quantity: request.body.quantity,
       attemptedPrice: request.body.initial_offer,
-      terms: policy.fulfillment_terms,
+      terms: request.body.intent_summary,
       floor: policy.min_price,
       allowed: true,
       requestFingerprint: fingerprint,
       now: options.now
     });
+  } catch (error) {
+    state.deals.delete(dealId);
+    throw error;
+  }
+
+  if (decision === "accept") {
+    const phaseBefore = deal.phase;
+    const dealSnapshot = cloneDealState(deal);
+    deal.phase = "countering";
+    deal.current_price = request.body.initial_offer;
+    deal.seller_terms = policy.fulfillment_terms;
+    deal.updated_at = options.now();
+
+    try {
+      await logAuditEvent({
+        auditLogPath: options.auditLogPath,
+        dealId,
+        counterpartyPubkey: request.from_pubkey,
+        action: "seller_accepted_offer",
+        method: request.method,
+        requestRound: request.round,
+        phaseBefore,
+        phaseAfter: deal.phase,
+        fromPubkey: request.from_pubkey,
+        toPubkey: request.to_pubkey,
+        envelopeTimestamp: request.timestamp,
+        envelopeExpiresAt: request.expires_at,
+        quantity: request.body.quantity,
+        attemptedPrice: request.body.initial_offer,
+        terms: policy.fulfillment_terms,
+        floor: policy.min_price,
+        allowed: true,
+        requestFingerprint: fingerprint,
+        now: options.now
+      });
+    } catch (error) {
+      restoreDealState(deal, dealSnapshot);
+      throw error;
+    }
 
     return {
       deal_id: dealId,
@@ -864,32 +1043,38 @@ async function handleOpen(
 
   if (decision === "walk") {
     const phaseBefore = deal.phase;
+    const dealSnapshot = cloneDealState(deal);
     deal.phase = "walked";
     deal.reason_code = "price_too_low";
     deal.updated_at = options.now();
 
-    await logAuditEvent({
-      auditLogPath: options.auditLogPath,
-      dealId,
-      counterpartyPubkey: request.from_pubkey,
-      action: "walk",
-      method: request.method,
-      requestRound: request.round,
-      phaseBefore,
-      phaseAfter: deal.phase,
-      fromPubkey: request.from_pubkey,
-      toPubkey: request.to_pubkey,
-      envelopeTimestamp: request.timestamp,
-      envelopeExpiresAt: request.expires_at,
-      quantity: request.body.quantity,
-      attemptedPrice: request.body.initial_offer,
-      terms: policy.fulfillment_terms,
-      floor: policy.min_price,
-      allowed: true,
-      reason: "price_too_low",
-      requestFingerprint: fingerprint,
-      now: options.now
-    });
+    try {
+      await logAuditEvent({
+        auditLogPath: options.auditLogPath,
+        dealId,
+        counterpartyPubkey: request.from_pubkey,
+        action: "walk",
+        method: request.method,
+        requestRound: request.round,
+        phaseBefore,
+        phaseAfter: deal.phase,
+        fromPubkey: request.from_pubkey,
+        toPubkey: request.to_pubkey,
+        envelopeTimestamp: request.timestamp,
+        envelopeExpiresAt: request.expires_at,
+        quantity: request.body.quantity,
+        attemptedPrice: request.body.initial_offer,
+        terms: policy.fulfillment_terms,
+        floor: policy.min_price,
+        allowed: true,
+        reason: "price_too_low",
+        requestFingerprint: fingerprint,
+        now: options.now
+      });
+    } catch (error) {
+      restoreDealState(deal, dealSnapshot);
+      throw error;
+    }
 
     return failureResponse(dealId, "price_too_low");
   }
@@ -902,32 +1087,38 @@ async function handleOpen(
     maxRounds: policy.max_rounds
   });
 
+  const dealSnapshot = cloneDealState(deal);
   deal.phase = "countering";
   deal.current_price = counterPrice;
   deal.seller_terms = policy.fulfillment_terms;
   deal.updated_at = options.now();
 
-  await logAuditEvent({
-    auditLogPath: options.auditLogPath,
-    dealId,
-    counterpartyPubkey: request.from_pubkey,
-    action: "seller_countered",
-    method: request.method,
-    requestRound: request.round,
-    phaseBefore,
-    phaseAfter: deal.phase,
-    fromPubkey: request.from_pubkey,
-    toPubkey: request.to_pubkey,
-    envelopeTimestamp: request.timestamp,
-    envelopeExpiresAt: request.expires_at,
-    quantity: request.body.quantity,
-    attemptedPrice: counterPrice,
-    terms: policy.fulfillment_terms,
-    floor: policy.min_price,
-    allowed: true,
-    requestFingerprint: fingerprint,
-    now: options.now
-  });
+  try {
+    await logAuditEvent({
+      auditLogPath: options.auditLogPath,
+      dealId,
+      counterpartyPubkey: request.from_pubkey,
+      action: "seller_countered",
+      method: request.method,
+      requestRound: request.round,
+      phaseBefore,
+      phaseAfter: deal.phase,
+      fromPubkey: request.from_pubkey,
+      toPubkey: request.to_pubkey,
+      envelopeTimestamp: request.timestamp,
+      envelopeExpiresAt: request.expires_at,
+      quantity: request.body.quantity,
+      attemptedPrice: counterPrice,
+      terms: policy.fulfillment_terms,
+      floor: policy.min_price,
+      allowed: true,
+      requestFingerprint: fingerprint,
+      now: options.now
+    });
+  } catch (error) {
+    restoreDealState(deal, dealSnapshot);
+    throw error;
+  }
 
   return {
     deal_id: dealId,
@@ -940,10 +1131,15 @@ async function handleOpen(
 type NormalizedOptions = ReturnType<typeof createNormalizedOptions>;
 
 function createNormalizedOptions(rawOptions: SellerServerOptions) {
+  const buyerSecrets = rawOptions.buyerSecrets ?? {};
+  if (Object.keys(buyerSecrets).length === 0) {
+    throw new Error("buyerSecrets must be configured.");
+  }
+
   return {
     auditLogPath: rawOptions.auditLogPath ?? DEFAULT_AUDIT_LOG_PATH,
     sellerPubkey: rawOptions.sellerPubkey ?? DEFAULT_SELLER_PUBKEY,
-    buyerSecrets: rawOptions.buyerSecrets ?? {},
+    buyerSecrets,
     supportedConstraints: rawOptions.supportedConstraints ?? {},
     now: rawOptions.now ?? (() => new Date().toISOString()),
     maxClockSkewMs: rawOptions.maxClockSkewMs ?? 5 * 60_000,
@@ -1047,35 +1243,43 @@ async function handleCounter(
     maxRounds: policy.max_rounds
   });
 
+  const roundSnapshot = deal.round;
   deal.round = sellerRound;
 
   if (decision === "accept") {
     const phaseBefore = deal.phase;
+    const dealSnapshot = cloneDealState(deal);
     deal.current_price = request.body.price;
     deal.seller_terms = request.body.terms ?? deal.seller_terms ?? policy.fulfillment_terms;
     deal.updated_at = options.now();
 
-    await logAuditEvent({
-      auditLogPath: options.auditLogPath,
-      dealId: deal.deal_id,
-      counterpartyPubkey: request.from_pubkey,
-      action: "seller_accepted_offer",
-      method: request.method,
-      requestRound: request.round,
-      phaseBefore,
-      phaseAfter: deal.phase,
-      fromPubkey: request.from_pubkey,
-      toPubkey: request.to_pubkey,
-      envelopeTimestamp: request.timestamp,
-      envelopeExpiresAt: request.expires_at,
-      quantity: deal.quantity,
-      attemptedPrice: request.body.price,
-      terms: deal.seller_terms,
-      floor: policy.min_price,
-      allowed: true,
-      requestFingerprint: fingerprint,
-      now: options.now
-    });
+    try {
+      await logAuditEvent({
+        auditLogPath: options.auditLogPath,
+        dealId: deal.deal_id,
+        counterpartyPubkey: request.from_pubkey,
+        action: "seller_accepted_offer",
+        method: request.method,
+        requestRound: request.round,
+        phaseBefore,
+        phaseAfter: deal.phase,
+        fromPubkey: request.from_pubkey,
+        toPubkey: request.to_pubkey,
+        envelopeTimestamp: request.timestamp,
+        envelopeExpiresAt: request.expires_at,
+        quantity: deal.quantity,
+        attemptedPrice: request.body.price,
+        terms: deal.seller_terms,
+        floor: policy.min_price,
+        allowed: true,
+        requestFingerprint: fingerprint,
+        now: options.now
+      });
+    } catch (error) {
+      deal.round = roundSnapshot;
+      restoreDealState(deal, dealSnapshot);
+      throw error;
+    }
 
     return {
       deal_id: deal.deal_id,
@@ -1085,32 +1289,39 @@ async function handleCounter(
 
   if (decision === "walk") {
     const phaseBefore = deal.phase;
+    const dealSnapshot = cloneDealState(deal);
     deal.phase = "walked";
     deal.reason_code = "price_too_low";
     deal.updated_at = options.now();
 
-    await logAuditEvent({
-      auditLogPath: options.auditLogPath,
-      dealId: deal.deal_id,
-      counterpartyPubkey: request.from_pubkey,
-      action: "walk",
-      method: request.method,
-      requestRound: request.round,
-      phaseBefore,
-      phaseAfter: deal.phase,
-      fromPubkey: request.from_pubkey,
-      toPubkey: request.to_pubkey,
-      envelopeTimestamp: request.timestamp,
-      envelopeExpiresAt: request.expires_at,
-      quantity: deal.quantity,
-      attemptedPrice: request.body.price,
-      terms: request.body.terms,
-      floor: policy.min_price,
-      allowed: true,
-      reason: "price_too_low",
-      requestFingerprint: fingerprint,
-      now: options.now
-    });
+    try {
+      await logAuditEvent({
+        auditLogPath: options.auditLogPath,
+        dealId: deal.deal_id,
+        counterpartyPubkey: request.from_pubkey,
+        action: "walk",
+        method: request.method,
+        requestRound: request.round,
+        phaseBefore,
+        phaseAfter: deal.phase,
+        fromPubkey: request.from_pubkey,
+        toPubkey: request.to_pubkey,
+        envelopeTimestamp: request.timestamp,
+        envelopeExpiresAt: request.expires_at,
+        quantity: deal.quantity,
+        attemptedPrice: request.body.price,
+        terms: request.body.terms,
+        floor: policy.min_price,
+        allowed: true,
+        reason: "price_too_low",
+        requestFingerprint: fingerprint,
+        now: options.now
+      });
+    } catch (error) {
+      deal.round = roundSnapshot;
+      restoreDealState(deal, dealSnapshot);
+      throw error;
+    }
 
     return failureResponse(deal.deal_id, "price_too_low");
   }
@@ -1123,30 +1334,37 @@ async function handleCounter(
     maxRounds: policy.max_rounds
   });
 
+  const dealSnapshot = cloneDealState(deal);
   deal.current_price = counterPrice;
   deal.updated_at = options.now();
 
-  await logAuditEvent({
-    auditLogPath: options.auditLogPath,
-    dealId: deal.deal_id,
-    counterpartyPubkey: request.from_pubkey,
-    action: "seller_countered",
-    method: request.method,
-    requestRound: request.round,
-    phaseBefore,
-    phaseAfter: deal.phase,
-    fromPubkey: request.from_pubkey,
-    toPubkey: request.to_pubkey,
-    envelopeTimestamp: request.timestamp,
-    envelopeExpiresAt: request.expires_at,
-    quantity: deal.quantity,
-    attemptedPrice: counterPrice,
-    terms: deal.seller_terms,
-    floor: policy.min_price,
-    allowed: true,
-    requestFingerprint: fingerprint,
-    now: options.now
-  });
+  try {
+    await logAuditEvent({
+      auditLogPath: options.auditLogPath,
+      dealId: deal.deal_id,
+      counterpartyPubkey: request.from_pubkey,
+      action: "seller_countered",
+      method: request.method,
+      requestRound: request.round,
+      phaseBefore,
+      phaseAfter: deal.phase,
+      fromPubkey: request.from_pubkey,
+      toPubkey: request.to_pubkey,
+      envelopeTimestamp: request.timestamp,
+      envelopeExpiresAt: request.expires_at,
+      quantity: deal.quantity,
+      attemptedPrice: counterPrice,
+      terms: deal.seller_terms,
+      floor: policy.min_price,
+      allowed: true,
+      requestFingerprint: fingerprint,
+      now: options.now
+    });
+  } catch (error) {
+    deal.round = roundSnapshot;
+    restoreDealState(deal, dealSnapshot);
+    throw error;
+  }
 
   return {
     deal_id: deal.deal_id,
@@ -1287,6 +1505,8 @@ async function handleAccept(
     }
   }
 
+  const inventorySnapshot = state.availableInventory;
+  const dealSnapshot = cloneDealState(deal);
   state.availableInventory -= deal.quantity;
 
   const phaseBefore = deal.phase;
@@ -1296,7 +1516,8 @@ async function handleAccept(
     asset: "USDC" as const,
     amount: request.body.accepted_price,
     pay_to: options.sellerPubkey,
-    expires_at: addMinutes(acceptedAt, 10)
+    expires_at: addMinutes(acceptedAt, 10),
+    settlement_nonce: randomUUID()
   };
 
   deal.phase = "accepted";
@@ -1305,27 +1526,33 @@ async function handleAccept(
   deal.payment_required = paymentRequired;
   deal.updated_at = acceptedAt;
 
-  await logAuditEvent({
-    auditLogPath: options.auditLogPath,
-    dealId: deal.deal_id,
-    counterpartyPubkey: request.from_pubkey,
-    action: "buyer_accepted_quote",
-    method: request.method,
-    requestRound: request.round,
-    phaseBefore,
-    phaseAfter: deal.phase,
-    fromPubkey: request.from_pubkey,
-    toPubkey: request.to_pubkey,
-    envelopeTimestamp: request.timestamp,
-    envelopeExpiresAt: request.expires_at,
-    quantity: deal.quantity,
-    attemptedPrice: request.body.accepted_price,
-    terms: request.body.terms,
-    floor: policy.min_price,
-    allowed: true,
-    requestFingerprint: fingerprint,
-    now: options.now
-  });
+  try {
+    await logAuditEvent({
+      auditLogPath: options.auditLogPath,
+      dealId: deal.deal_id,
+      counterpartyPubkey: request.from_pubkey,
+      action: "buyer_accepted_quote",
+      method: request.method,
+      requestRound: request.round,
+      phaseBefore,
+      phaseAfter: deal.phase,
+      fromPubkey: request.from_pubkey,
+      toPubkey: request.to_pubkey,
+      envelopeTimestamp: request.timestamp,
+      envelopeExpiresAt: request.expires_at,
+      quantity: deal.quantity,
+      attemptedPrice: request.body.accepted_price,
+      terms: request.body.terms,
+      floor: policy.min_price,
+      allowed: true,
+      requestFingerprint: fingerprint,
+      now: options.now
+    });
+  } catch (error) {
+    state.availableInventory = inventorySnapshot;
+    restoreDealState(deal, dealSnapshot);
+    throw error;
+  }
 
   return {
     deal_id: deal.deal_id,
@@ -1383,34 +1610,42 @@ async function handleWalk(
   }
 
   const phaseBefore = deal.phase;
+  const inventorySnapshot = state.availableInventory;
+  const dealSnapshot = cloneDealState(deal);
   releaseReservation(state, deal);
   deal.phase = "walked";
   deal.round = deal.round + 1;
   deal.reason_code = request.body.reason_code;
   deal.updated_at = options.now();
 
-  await logAuditEvent({
-    auditLogPath: options.auditLogPath,
-    dealId: deal.deal_id,
-    counterpartyPubkey: request.from_pubkey,
-    action: "walk",
-    method: request.method,
-    requestRound: request.round,
-    phaseBefore,
-    phaseAfter: deal.phase,
-    fromPubkey: request.from_pubkey,
-    toPubkey: request.to_pubkey,
-    envelopeTimestamp: request.timestamp,
-    envelopeExpiresAt: request.expires_at,
-    quantity: deal.quantity,
-    attemptedPrice: deal.current_price,
-    terms: request.body.note,
-    floor: policy.min_price,
-    allowed: true,
-    reason: request.body.reason_code,
-    requestFingerprint: fingerprint,
-    now: options.now
-  });
+  try {
+    await logAuditEvent({
+      auditLogPath: options.auditLogPath,
+      dealId: deal.deal_id,
+      counterpartyPubkey: request.from_pubkey,
+      action: "walk",
+      method: request.method,
+      requestRound: request.round,
+      phaseBefore,
+      phaseAfter: deal.phase,
+      fromPubkey: request.from_pubkey,
+      toPubkey: request.to_pubkey,
+      envelopeTimestamp: request.timestamp,
+      envelopeExpiresAt: request.expires_at,
+      quantity: deal.quantity,
+      attemptedPrice: deal.current_price,
+      terms: request.body.note,
+      floor: policy.min_price,
+      allowed: true,
+      reason: request.body.reason_code,
+      requestFingerprint: fingerprint,
+      now: options.now
+    });
+  } catch (error) {
+    state.availableInventory = inventorySnapshot;
+    restoreDealState(deal, dealSnapshot);
+    throw error;
+  }
 
   return {
     deal_id: deal.deal_id,
@@ -1426,12 +1661,7 @@ async function handleStatus(
 ): Promise<StatusResponse> {
   const deal = state.deals.get(request.body.deal_id);
   if (!deal) {
-    return {
-      deal_id: request.body.deal_id,
-      phase: "walked",
-      round: 0,
-      updated_at: options.now()
-    };
+    return walkedStatusResponse(request.body.deal_id, options.now);
   }
 
   if (deal.buyer_pubkey !== request.from_pubkey || request.to_pubkey !== options.sellerPubkey) {
@@ -1452,7 +1682,7 @@ async function handleStatus(
       closeDeal: false,
       now: options.now
     });
-    throw new Error("validation_denied");
+    return walkedStatusResponse(request.body.deal_id, options.now);
   }
 
   return {

@@ -10,6 +10,8 @@ export type RpcMethod =
   | "bidmesh.negotiate.walk"
   | "bidmesh.negotiate.status";
 
+export type SettlementMethod = "bidmesh.negotiate.settle";
+
 export type ValidationResult =
   | { allow: true }
   | { allow: false; reason: string };
@@ -176,6 +178,7 @@ export type PaymentRequired = {
   amount: number;
   pay_to: string;
   expires_at: string;
+  settlement_nonce: string;
 };
 
 export type AcceptResponse = {
@@ -308,10 +311,12 @@ export type SellerAuditEntry = {
 };
 
 export type SettleRequest = {
+  deal_id: string;
   accepted_price: number;
   currency: MvpCurrency;
   buyer_pubkey: string;
   human_confirmation: boolean;
+  settlement_nonce: string;
 };
 
 export type SettlementResponse = {
@@ -326,3 +331,22 @@ export type NegotiationMove = "accept" | "counter" | "walk";
 export type SignedRpcEnvelope = RpcRequest<
   OpenRequest | CounterRequest | AcceptRequest | WalkRequest | StatusRequest
 >;
+
+export type SignedSettlementEnvelope = {
+  protocol: Protocol;
+  method: SettlementMethod;
+  deal_id: string;
+  from_pubkey: string;
+  to_pubkey: string;
+  round: number;
+  timestamp: string;
+  expires_at?: string;
+  signature: "mock";
+  body: SettleRequest;
+};
+
+export type BuyerSession = {
+  buyer_pubkey: string;
+  shared_secret: string;
+  auth_header_name?: string;
+};

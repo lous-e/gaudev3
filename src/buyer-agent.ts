@@ -2,19 +2,24 @@ import type {
   AcceptRequest,
   AcceptResponse,
   BuyerIntent,
+  BuyerSession,
   BuyerStrategy,
   CounterRequest,
   CounterResponse,
   Deal,
-  NuffEnvelope,
   OpenRequest,
   OpenResponse,
   RpcMethod,
+  RpcRequest,
+  StatusRequest,
+  SettlementResponse,
+  SettleRequest,
   WalkRequest,
   WalkResponse
 } from "./types";
 import { writeBuyerAudit } from "./audit";
 import { decideBuyerMove, nextBuyerCounter } from "./heuristics";
+import { createMockAuthToken } from "./protocol-security";
 import { validateBuyerAction } from "./validation";
 
 export type HumanConfirmationPrompt = (summary: string) => Promise<boolean>;
@@ -35,35 +40,50 @@ export type BuyerLoopSkeleton = {
   confirmationSummary: string;
 };
 
-type RpcEnvelope<TBody, TMethod extends RpcMethod> = NuffEnvelope<TBody> & {
+type OutboundRpcEnvelope<TBody, TMethod extends RpcMethod> = RpcRequest<TBody> & {
   method: TMethod;
 };
 
-export type BuyerOpenEnvelope = RpcEnvelope<
+type SignableRpcBody =
+  | OpenRequest
+  | CounterRequest
+  | AcceptRequest
+  | WalkRequest
+  | StatusRequest;
+
+type SettlementEnvelope = {
+  protocol: "nuff/v1";
+  method: "bidmesh.negotiate.settle";
+  deal_id: string;
+  from_pubkey: string;
+  to_pubkey: string;
+  round: number;
+  timestamp: string;
+  expires_at?: string;
+  signature: "mock";
+  body: SettleRequest;
+};
+
+export type BuyerOpenEnvelope = OutboundRpcEnvelope<
   OpenRequest,
   "bidmesh.negotiate.open"
 >;
 
-type BuyerCounterEnvelope = RpcEnvelope<
+type BuyerCounterEnvelope = OutboundRpcEnvelope<
   CounterRequest,
   "bidmesh.negotiate.counter"
 >;
 
-type BuyerAcceptEnvelope = RpcEnvelope<
+type BuyerAcceptEnvelope = OutboundRpcEnvelope<
   AcceptRequest,
   "bidmesh.negotiate.accept"
 >;
 
-type BuyerWalkEnvelope = RpcEnvelope<WalkRequest, "bidmesh.negotiate.walk">;
+type BuyerWalkEnvelope = OutboundRpcEnvelope<WalkRequest, "bidmesh.negotiate.walk">;
 
-type SettlementProof = {
-  txHash: string;
-  artifact?: string;
-  amount?: number;
-  network?: string;
-};
+type SettlementProof = SettlementResponse;
 
-const BUYER_PUBKEY = "mock-buyer-pubkey";
+const DEFAULT_AUTH_HEADER_NAME = "x-bidmesh-auth";
 
 function nowIso(): string {
   return new Date().toISOString();
@@ -79,16 +99,17 @@ function getOpeningOffer(strategy: BuyerStrategy): number {
 
 function createEnvelope<TBody, TMethod extends RpcMethod>(params: {
   method: TMethod;
-  dealId: string;
+  dealId?: string;
+  buyerPubkey: string;
   sellerPubkey: string;
   round: number;
   body: TBody;
-}): RpcEnvelope<TBody, TMethod> {
+}): OutboundRpcEnvelope<TBody, TMethod> {
   return {
     protocol: "nuff/v1",
     method: params.method,
     deal_id: params.dealId,
-    from_pubkey: BUYER_PUBKEY,
+    from_pubkey: params.buyerPubkey,
     to_pubkey: params.sellerPubkey,
     round: params.round,
     timestamp: nowIso(),
@@ -97,16 +118,37 @@ function createEnvelope<TBody, TMethod extends RpcMethod>(params: {
   };
 }
 
+function signEnvelope(
+  envelope: OutboundRpcEnvelope<SignableRpcBody, RpcMethod> | SettlementEnvelope,
+  session: BuyerSession
+): string {
+  return createMockAuthToken(
+    {
+      protocol: envelope.protocol,
+      method: envelope.method,
+      deal_id: envelope.deal_id,
+      from_pubkey: envelope.from_pubkey,
+      to_pubkey: envelope.to_pubkey,
+      round: envelope.round,
+      timestamp: envelope.timestamp,
+      expires_at: envelope.expires_at,
+      body: envelope.body
+    },
+    session.shared_secret
+  );
+}
+
 export function buildOpenEnvelope(
   intent: BuyerIntent,
   strategy: BuyerStrategy,
-  sellerPubkey: string
+  sellerPubkey: string,
+  buyerPubkey: string
 ): BuyerOpenEnvelope {
   const openingOffer = getOpeningOffer(strategy);
 
   return createEnvelope({
     method: "bidmesh.negotiate.open",
-    dealId: "pending",
+    buyerPubkey,
     sellerPubkey,
     round: 1,
     body: {
@@ -145,7 +187,8 @@ export function createBuyerLoopSkeleton(
   intent: BuyerIntent,
   strategy: BuyerStrategy,
   sellerUrl: string,
-  sellerPubkey: string
+  sellerPubkey: string,
+  buyerPubkey: string
 ): BuyerLoopSkeleton {
   const normalizedSellerUrl = normalizeSellerUrl(sellerUrl);
   const openingOffer = getOpeningOffer(strategy);
@@ -154,7 +197,7 @@ export function createBuyerLoopSkeleton(
     sellerUrl: normalizedSellerUrl,
     sellerPubkey,
     openingOffer,
-    openEnvelope: buildOpenEnvelope(intent, strategy, sellerPubkey),
+    openEnvelope: buildOpenEnvelope(intent, strategy, sellerPubkey, buyerPubkey),
     confirmationSummary: formatConfirmationSummary({
       intent,
       sellerPubkey,
@@ -165,6 +208,7 @@ export function createBuyerLoopSkeleton(
 
 function buildCounterEnvelope(params: {
   dealId: string;
+  buyerPubkey: string;
   sellerPubkey: string;
   round: number;
   price: number;
@@ -173,6 +217,7 @@ function buildCounterEnvelope(params: {
   return createEnvelope({
     method: "bidmesh.negotiate.counter",
     dealId: params.dealId,
+    buyerPubkey: params.buyerPubkey,
     sellerPubkey: params.sellerPubkey,
     round: params.round,
     body: {
@@ -185,6 +230,7 @@ function buildCounterEnvelope(params: {
 
 function buildAcceptEnvelope(params: {
   dealId: string;
+  buyerPubkey: string;
   sellerPubkey: string;
   round: number;
   acceptedPrice: number;
@@ -194,6 +240,7 @@ function buildAcceptEnvelope(params: {
   return createEnvelope({
     method: "bidmesh.negotiate.accept",
     dealId: params.dealId,
+    buyerPubkey: params.buyerPubkey,
     sellerPubkey: params.sellerPubkey,
     round: params.round,
     body: {
@@ -207,6 +254,7 @@ function buildAcceptEnvelope(params: {
 
 function buildWalkEnvelope(params: {
   dealId: string;
+  buyerPubkey: string;
   sellerPubkey: string;
   round: number;
   reasonCode: WalkRequest["reason_code"];
@@ -215,6 +263,7 @@ function buildWalkEnvelope(params: {
   return createEnvelope({
     method: "bidmesh.negotiate.walk",
     dealId: params.dealId,
+    buyerPubkey: params.buyerPubkey,
     sellerPubkey: params.sellerPubkey,
     round: params.round,
     body: {
@@ -225,10 +274,18 @@ function buildWalkEnvelope(params: {
   });
 }
 
-async function postJson<TResponse>(url: string, body: unknown): Promise<TResponse> {
+async function postJson<TResponse>(
+  url: string,
+  body: unknown,
+  authHeaderName?: string,
+  authToken?: string
+): Promise<TResponse> {
   const response = await fetch(url, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: {
+      "content-type": "application/json",
+      ...(authToken ? { [authHeaderName ?? DEFAULT_AUTH_HEADER_NAME]: authToken } : {})
+    },
     body: JSON.stringify(body)
   });
 
@@ -241,19 +298,25 @@ async function postJson<TResponse>(url: string, body: unknown): Promise<TRespons
 
 async function postRpc<TResponse>(
   sellerUrl: string,
-  envelope: RpcEnvelope<unknown, RpcMethod>
+  envelope: OutboundRpcEnvelope<SignableRpcBody, RpcMethod>,
+  session: BuyerSession
 ): Promise<TResponse> {
-  return postJson<TResponse>(`${sellerUrl}/rpc`, envelope);
+  return postJson<TResponse>(
+    `${sellerUrl}/rpc`,
+    envelope,
+    session.auth_header_name,
+    signEnvelope(envelope, session)
+  );
 }
 
-function writeBlockedAudit(params: {
+async function writeBlockedAudit(params: {
   dealId: string;
   sellerPubkey: string;
   actionPrice: number;
   cap: number;
   reason: string;
-}): void {
-  writeBuyerAudit({
+}): Promise<void> {
+  await writeBuyerAudit({
     timestamp: nowIso(),
     session_id: "demo-session",
     deal_id: params.dealId,
@@ -266,11 +329,21 @@ function writeBlockedAudit(params: {
   });
 }
 
+function resolveSettlementUrl(sellerUrl: string, settlementUrl: string): string {
+  const baseUrl = new URL(`${normalizeSellerUrl(sellerUrl)}/`);
+  const resolvedUrl = new URL(settlementUrl, baseUrl);
+  if (resolvedUrl.origin !== baseUrl.origin) {
+    throw new Error("Settlement URL origin mismatch.");
+  }
+  return resolvedUrl.toString();
+}
+
 async function validateOutboundOrWalk(params: {
   action: "open" | "counter" | "accept" | "settle";
   price: number;
   intent: BuyerIntent;
   humanConfirmed: boolean;
+  session: BuyerSession;
   sellerUrl: string;
   sellerPubkey: string;
   dealId: string;
@@ -287,7 +360,7 @@ async function validateOutboundOrWalk(params: {
     return true;
   }
 
-  writeBlockedAudit({
+  await writeBlockedAudit({
     dealId: params.dealId,
     sellerPubkey: params.sellerPubkey,
     actionPrice: params.price,
@@ -298,6 +371,8 @@ async function validateOutboundOrWalk(params: {
   if (params.dealId !== "pending") {
     await sendWalk({
       sellerUrl: params.sellerUrl,
+      buyerPubkey: params.session.buyer_pubkey,
+      session: params.session,
       sellerPubkey: params.sellerPubkey,
       dealId: params.dealId,
       round: params.round,
@@ -311,6 +386,8 @@ async function validateOutboundOrWalk(params: {
 
 async function sendWalk(params: {
   sellerUrl: string;
+  buyerPubkey: string;
+  session: BuyerSession;
   sellerPubkey: string;
   dealId: string;
   round: number;
@@ -321,11 +398,13 @@ async function sendWalk(params: {
     params.sellerUrl,
     buildWalkEnvelope({
       dealId: params.dealId,
+      buyerPubkey: params.buyerPubkey,
       sellerPubkey: params.sellerPubkey,
       round: params.round,
       reasonCode: params.reasonCode,
       note: params.note
-    })
+    }),
+    params.session
   );
 }
 
@@ -334,6 +413,7 @@ function buildDeal(params: {
   phase: Deal["phase"];
   round: number;
   currentPrice?: number;
+  buyerPubkey: string;
   sellerPubkey: string;
   intent: BuyerIntent;
   item: string;
@@ -346,7 +426,7 @@ function buildDeal(params: {
     phase: params.phase,
     round: params.round,
     current_price: params.currentPrice,
-    buyer_pubkey: BUYER_PUBKEY,
+    buyer_pubkey: params.buyerPubkey,
     seller_pubkey: params.sellerPubkey,
     intent_summary: `${params.intent.quantity} ${params.intent.item}`,
     item: params.item,
@@ -377,21 +457,27 @@ async function acceptAndMaybeSettle(params: {
   terms: string;
   intent: BuyerIntent;
   askForHumanConfirmation: HumanConfirmationPrompt;
+  session: BuyerSession;
   transcript: string[];
 }): Promise<BuyerNegotiationResult> {
+  const acceptRound = params.round + 1;
+  const postAcceptRound = acceptRound + 1;
   const acceptAllowed = await validateOutboundOrWalk({
     action: "accept",
     price: params.acceptedPrice,
     intent: params.intent,
     humanConfirmed: false,
+    session: params.session,
     sellerUrl: params.sellerUrl,
     sellerPubkey: params.sellerPubkey,
     dealId: params.dealId,
-    round: params.round
+    round: acceptRound
   });
 
   if (!acceptAllowed) {
-    params.transcript.push(`[Buyer] Blocked accept at ${params.acceptedPrice.toFixed(2)} ${params.intent.currency}`);
+    params.transcript.push(
+      `[Buyer] Blocked accept at ${params.acceptedPrice.toFixed(2)} ${params.intent.currency}`
+    );
     return {
       settled: false,
       transcript: params.transcript,
@@ -400,6 +486,7 @@ async function acceptAndMaybeSettle(params: {
         phase: "walked",
         round: params.round,
         currentPrice: params.acceptedPrice,
+        buyerPubkey: params.session.buyer_pubkey,
         sellerPubkey: params.sellerPubkey,
         intent: params.intent,
         item: params.intent.item
@@ -411,12 +498,14 @@ async function acceptAndMaybeSettle(params: {
     params.sellerUrl,
     buildAcceptEnvelope({
       dealId: params.dealId,
+      buyerPubkey: params.session.buyer_pubkey,
       sellerPubkey: params.sellerPubkey,
-      round: params.round,
+      round: acceptRound,
       acceptedPrice: params.acceptedPrice,
       intent: params.intent,
       terms: params.terms
-    })
+    }),
+    params.session
   );
 
   if (!isAcceptResponse(acceptResponse)) {
@@ -429,6 +518,7 @@ async function acceptAndMaybeSettle(params: {
         phase: "walked",
         round: params.round,
         currentPrice: params.acceptedPrice,
+        buyerPubkey: params.session.buyer_pubkey,
         sellerPubkey: params.sellerPubkey,
         intent: params.intent,
         item: params.intent.item
@@ -455,10 +545,11 @@ async function acceptAndMaybeSettle(params: {
       price: acceptResponse.payment_required.amount,
       intent: params.intent,
       humanConfirmed,
+      session: params.session,
       sellerUrl: params.sellerUrl,
       sellerPubkey: params.sellerPubkey,
       dealId: params.dealId,
-      round: params.round
+      round: postAcceptRound
     }));
 
     if (settlementBlocked) {
@@ -470,6 +561,7 @@ async function acceptAndMaybeSettle(params: {
           phase: "walked",
           round: params.round,
           currentPrice: params.acceptedPrice,
+          buyerPubkey: params.session.buyer_pubkey,
           sellerPubkey: params.sellerPubkey,
           intent: params.intent,
           item: params.intent.item
@@ -479,9 +571,11 @@ async function acceptAndMaybeSettle(params: {
 
     await sendWalk({
       sellerUrl: params.sellerUrl,
+      buyerPubkey: params.session.buyer_pubkey,
+      session: params.session,
       sellerPubkey: params.sellerPubkey,
       dealId: params.dealId,
-      round: params.round,
+      round: postAcceptRound,
       reasonCode: "human_confirmation_required",
       note: "Human declined payment confirmation."
     });
@@ -494,6 +588,7 @@ async function acceptAndMaybeSettle(params: {
         phase: "walked",
         round: params.round,
         currentPrice: params.acceptedPrice,
+        buyerPubkey: params.session.buyer_pubkey,
         sellerPubkey: params.sellerPubkey,
         intent: params.intent,
         item: params.intent.item
@@ -506,14 +601,17 @@ async function acceptAndMaybeSettle(params: {
     price: acceptResponse.payment_required.amount,
     intent: params.intent,
     humanConfirmed,
+    session: params.session,
     sellerUrl: params.sellerUrl,
     sellerPubkey: params.sellerPubkey,
     dealId: params.dealId,
-    round: params.round
+    round: postAcceptRound
   });
 
   if (!settlementAllowed) {
-    params.transcript.push(`[Buyer] Blocked settlement at ${acceptResponse.payment_required.amount.toFixed(2)} ${params.intent.currency}`);
+    params.transcript.push(
+      `[Buyer] Blocked settlement at ${acceptResponse.payment_required.amount.toFixed(2)} ${params.intent.currency}`
+    );
     return {
       settled: false,
       transcript: params.transcript,
@@ -522,6 +620,7 @@ async function acceptAndMaybeSettle(params: {
         phase: "walked",
         round: params.round,
         currentPrice: params.acceptedPrice,
+        buyerPubkey: params.session.buyer_pubkey,
         sellerPubkey: params.sellerPubkey,
         intent: params.intent,
         item: params.intent.item
@@ -529,31 +628,55 @@ async function acceptAndMaybeSettle(params: {
     };
   }
 
-  const proof = await postJson<SettlementProof>(acceptResponse.settlement_url, {
+  const settlementUrl = resolveSettlementUrl(
+    params.sellerUrl,
+    acceptResponse.settlement_url
+  );
+  const settlementRequest: SettleRequest = {
     deal_id: params.dealId,
-    amount: acceptResponse.payment_required.amount,
-    network: acceptResponse.payment_required.network,
-    asset: acceptResponse.payment_required.asset
-  });
+    accepted_price: params.acceptedPrice,
+    currency: params.intent.currency,
+    buyer_pubkey: params.session.buyer_pubkey,
+    human_confirmation: true,
+    settlement_nonce: acceptResponse.payment_required.settlement_nonce
+  };
+  const settlementEnvelope: SettlementEnvelope = {
+    protocol: "nuff/v1",
+    method: "bidmesh.negotiate.settle",
+    deal_id: params.dealId,
+    from_pubkey: params.session.buyer_pubkey,
+    to_pubkey: params.sellerPubkey,
+    round: postAcceptRound,
+    timestamp: nowIso(),
+    expires_at: acceptResponse.payment_required.expires_at,
+    signature: "mock",
+    body: settlementRequest
+  };
 
-  params.transcript.push(`[Settled] txHash: ${proof.txHash}`);
-  if (proof.artifact) {
-    params.transcript.push(`[Artifact] ${proof.artifact}`);
-  }
+  const settledProof = await postJson<SettlementProof>(
+    settlementUrl,
+    settlementEnvelope,
+    params.session.auth_header_name,
+    signEnvelope(settlementEnvelope, params.session)
+  );
+
+  params.transcript.push(`[Settled] txHash: ${settledProof.tx_hash}`);
+  params.transcript.push(`[Artifact] ${settledProof.proof_artifact.reference}`);
 
   return {
     settled: true,
     deal: buildDeal({
       dealId: params.dealId,
       phase: "settled",
-      round: params.round,
+      round: postAcceptRound,
       currentPrice: params.acceptedPrice,
+      buyerPubkey: params.session.buyer_pubkey,
       sellerPubkey: params.sellerPubkey,
       intent: params.intent,
       item: params.intent.item
     }),
-    txHash: proof.txHash,
-    artifact: proof.artifact,
+    txHash: settledProof.tx_hash,
+    artifact: settledProof.proof_artifact.reference,
     transcript: params.transcript
   };
 }
@@ -563,9 +686,16 @@ export async function runBuyerNegotiation(
   strategy: BuyerStrategy,
   sellerUrl: string,
   sellerPubkey: string,
-  askForHumanConfirmation: HumanConfirmationPrompt
+  askForHumanConfirmation: HumanConfirmationPrompt,
+  session: BuyerSession
 ): Promise<BuyerNegotiationResult> {
-  const skeleton = createBuyerLoopSkeleton(intent, strategy, sellerUrl, sellerPubkey);
+  const skeleton = createBuyerLoopSkeleton(
+    intent,
+    strategy,
+    sellerUrl,
+    sellerPubkey,
+    session.buyer_pubkey
+  );
   const targetPrice = intent.target_price ?? strategy.preferred_price;
   const transcript = [`[Buyer] Opening at ${skeleton.openingOffer.toFixed(2)} ${intent.currency}`];
 
@@ -574,9 +704,10 @@ export async function runBuyerNegotiation(
     price: skeleton.openingOffer,
     intent,
     humanConfirmed: false,
+    session,
     sellerUrl: skeleton.sellerUrl,
     sellerPubkey,
-    dealId: skeleton.openEnvelope.deal_id,
+    dealId: "pending",
     round: skeleton.openEnvelope.round
   });
 
@@ -587,7 +718,8 @@ export async function runBuyerNegotiation(
 
   const openResponse = await postRpc<OpenResponse>(
     skeleton.sellerUrl,
-    skeleton.openEnvelope
+    skeleton.openEnvelope,
+    session
   );
   const dealId = openResponse.deal_id;
   let round = 1;
@@ -597,7 +729,9 @@ export async function runBuyerNegotiation(
     : openResponse.counter_price;
   let terms = openResponse.terms ?? intent.delivery_requirement ?? "not specified";
   if (sellerPrice !== undefined) {
-    transcript.push(`[Seller] ${openResponse.accepted ? "Accept" : "Counter"}: ${sellerPrice.toFixed(2)} ${intent.currency}`);
+    transcript.push(
+      `[Seller] ${openResponse.accepted ? "Accept" : "Counter"}: ${sellerPrice.toFixed(2)} ${intent.currency}`
+    );
   }
 
   if (openResponse.accepted) {
@@ -610,6 +744,7 @@ export async function runBuyerNegotiation(
       terms,
       intent,
       askForHumanConfirmation,
+      session,
       transcript
     });
   }
@@ -633,17 +768,23 @@ export async function runBuyerNegotiation(
         terms,
         intent,
         askForHumanConfirmation,
+        session,
         transcript
       });
     }
 
     if (move === "walk") {
-      transcript.push(`[Buyer] Walk: seller price ${sellerPrice.toFixed(2)} exceeds max ${intent.max_price.toFixed(2)} ${intent.currency}`);
+      const walkRound = round + 1;
+      transcript.push(
+        `[Buyer] Walk: seller price ${sellerPrice.toFixed(2)} exceeds max ${intent.max_price.toFixed(2)} ${intent.currency}`
+      );
       await sendWalk({
         sellerUrl: skeleton.sellerUrl,
+        buyerPubkey: session.buyer_pubkey,
+        session,
         sellerPubkey,
         dealId,
-        round,
+        round: walkRound,
         reasonCode: "price_too_high",
         note: `Seller price ${sellerPrice} exceeds max price ${intent.max_price}.`
       });
@@ -654,8 +795,9 @@ export async function runBuyerNegotiation(
         deal: buildDeal({
           dealId,
           phase: "walked",
-          round,
+          round: walkRound,
           currentPrice: sellerPrice,
+          buyerPubkey: session.buyer_pubkey,
           sellerPubkey,
           intent,
           item: intent.item
@@ -675,6 +817,7 @@ export async function runBuyerNegotiation(
       price: counterPrice,
       intent,
       humanConfirmed: false,
+      session,
       sellerUrl: skeleton.sellerUrl,
       sellerPubkey,
       dealId,
@@ -691,6 +834,7 @@ export async function runBuyerNegotiation(
           phase: "walked",
           round,
           currentPrice: counterPrice,
+          buyerPubkey: session.buyer_pubkey,
           sellerPubkey,
           intent,
           item: intent.item
@@ -704,11 +848,13 @@ export async function runBuyerNegotiation(
       skeleton.sellerUrl,
       buildCounterEnvelope({
         dealId,
+        buyerPubkey: session.buyer_pubkey,
         sellerPubkey,
         round,
         price: counterPrice,
         intent
-      })
+      }),
+      session
     );
 
     if ("terms" in counterResponse && counterResponse.terms !== undefined) {
@@ -726,6 +872,7 @@ export async function runBuyerNegotiation(
         terms,
         intent,
         askForHumanConfirmation,
+        session,
         transcript
       });
     }
@@ -737,11 +884,14 @@ export async function runBuyerNegotiation(
   }
 
   transcript.push("[Buyer] Walk: round limit reached");
+  const walkRound = round + 1;
   await sendWalk({
     sellerUrl: skeleton.sellerUrl,
+    buyerPubkey: session.buyer_pubkey,
+    session,
     sellerPubkey,
     dealId,
-    round,
+    round: walkRound,
     reasonCode: "round_limit",
     note: "Buyer reached max negotiation rounds."
   });
@@ -752,8 +902,9 @@ export async function runBuyerNegotiation(
     deal: buildDeal({
       dealId,
       phase: "walked",
-      round,
+      round: walkRound,
       currentPrice: sellerPrice,
+      buyerPubkey: session.buyer_pubkey,
       sellerPubkey,
       intent,
       item: intent.item

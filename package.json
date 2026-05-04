@@ -1,12 +1,12 @@
 {
   "name": "bidmesh-negotiate",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "type": "commonjs",
   "scripts": {
     "build": "tsc --noEmit",
     "test": "vitest run --pool=threads",
-    "demo": "npx ts-node src/demo.ts"
+    "demo": "powershell -NoProfile -Command \"tsc --outDir .demo-dist; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; node .demo-dist/src/demo.js; $code = $LASTEXITCODE; Remove-Item -Recurse -Force .demo-dist -ErrorAction SilentlyContinue; exit $code\""
   },
   "dependencies": {
     "express": "^5.1.0",

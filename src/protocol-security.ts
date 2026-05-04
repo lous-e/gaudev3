@@ -3,6 +3,8 @@ import type {
   AcceptRequest,
   CounterRequest,
   OpenRequest,
+  SettleRequest,
+  SettlementMethod,
   StatusRequest,
   WalkRequest
 } from "./types";
@@ -14,14 +16,15 @@ export type EnvelopeForSigning = {
     | "bidmesh.negotiate.counter"
     | "bidmesh.negotiate.accept"
     | "bidmesh.negotiate.walk"
-    | "bidmesh.negotiate.status";
+    | "bidmesh.negotiate.status"
+    | SettlementMethod;
   deal_id?: string;
   from_pubkey: string;
   to_pubkey: string;
   round: number;
   timestamp: string;
   expires_at?: string;
-  body: OpenRequest | CounterRequest | AcceptRequest | WalkRequest | StatusRequest;
+  body: OpenRequest | CounterRequest | AcceptRequest | WalkRequest | StatusRequest | SettleRequest;
 };
 
 function canonicalize(value: unknown): string {

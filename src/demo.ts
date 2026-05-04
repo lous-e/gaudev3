@@ -2,10 +2,12 @@ import readline from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { runBuyerNegotiation } from "./buyer-agent";
 import { createSellerServer } from "./seller-server";
-import type { BuyerIntent, BuyerStrategy, SellerPolicy } from "./types";
+import type { BuyerIntent, BuyerSession, BuyerStrategy, SellerPolicy } from "./types";
 
 const SELLER_PORT = Number(process.env.PORT ?? 3001);
 const SELLER_PUBKEY = "mock-seller-pubkey";
+const BUYER_PUBKEY = "mock-buyer-pubkey";
+const BUYER_SHARED_SECRET = "demo-buyer-secret";
 
 function askForHumanConfirmation(summary: string): Promise<boolean> {
   const rl = readline.createInterface({ input, output });
@@ -54,8 +56,17 @@ async function main(): Promise<void> {
     concession_schedule: "linear",
     walkaway_after_rounds: 3
   };
+  const buyerSession: BuyerSession = {
+    buyer_pubkey: BUYER_PUBKEY,
+    shared_secret: BUYER_SHARED_SECRET
+  };
 
-  const app = createSellerServer(sellerPolicy);
+  const app = createSellerServer(sellerPolicy, {
+    sellerPubkey: SELLER_PUBKEY,
+    buyerSecrets: {
+      [BUYER_PUBKEY]: BUYER_SHARED_SECRET
+    }
+  });
   const server = app.listen(SELLER_PORT);
   const sellerUrl = process.env.SELLER_URL ?? `http://localhost:${SELLER_PORT}`;
 
@@ -68,14 +79,21 @@ async function main(): Promise<void> {
       strategy,
       sellerUrl,
       SELLER_PUBKEY,
-      askForHumanConfirmation
+      askForHumanConfirmation,
+      buyerSession
     );
 
     if (result.settled) {
+      if (result.transcript?.length) {
+        console.log(result.transcript.join("\n"));
+      }
       console.log(`[Settled] txHash: ${result.txHash ?? "missing"}`);
       console.log(`[Artifact] ${result.artifact ?? "missing"}`);
       console.log(`[Deal] ${JSON.stringify(result.deal, null, 2)}`);
     } else {
+      if (result.transcript?.length) {
+        console.log(result.transcript.join("\n"));
+      }
       console.log("[Walked] No settlement initiated.");
       if (result.deal) {
         console.log(`[Deal] ${JSON.stringify(result.deal, null, 2)}`);

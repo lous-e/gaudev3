@@ -21,8 +21,8 @@ export async function appendBuyerAuditEntry(
   await appendJsonLine(path, entry);
 }
 
-export function writeBuyerAudit(entry: BuyerAuditEntry): void {
-  void appendBuyerAuditEntry(DEFAULT_BUYER_AUDIT_LOG_PATH, entry);
+export function writeBuyerAudit(entry: BuyerAuditEntry): Promise<void> {
+  return appendBuyerAuditEntry(DEFAULT_BUYER_AUDIT_LOG_PATH, entry);
 }
 
 export async function appendSellerAuditEntry(

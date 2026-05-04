@@ -15,6 +15,7 @@ import type {
   RpcMethod,
   SellerAuditEntry,
   SellerPolicy,
+  SettlementMethod,
   SellerStrategy,
   SettleRequest,
   SettlementResponse,
@@ -221,7 +222,8 @@ export const paymentRequiredSchema = z.object({
   asset: mvpCurrencySchema,
   amount: positiveNumber,
   pay_to: z.string().min(1),
-  expires_at: isoDateTime
+  expires_at: isoDateTime,
+  settlement_nonce: z.string().uuid()
 }).strict() satisfies z.ZodType<PaymentRequired>;
 
 export const acceptRequestSchema = z.object({
@@ -343,10 +345,12 @@ export const sellerAuditEntrySchema = z.object({
 }).strict() satisfies z.ZodType<SellerAuditEntry>;
 
 export const settleRequestSchema = z.object({
+  deal_id: z.string().min(1),
   accepted_price: positiveNumber,
   currency: mvpCurrencySchema,
   buyer_pubkey: z.string().min(1),
-  human_confirmation: z.boolean()
+  human_confirmation: z.boolean(),
+  settlement_nonce: z.string().uuid()
 }).strict() satisfies z.ZodType<SettleRequest>;
 
 export const settlementResponseSchema = z.object({
@@ -392,6 +396,16 @@ const statusRpcRequestSchemaBase = rpcEnvelopeCommonSchema.extend({
   body: statusRequestSchema
 });
 
+export const settlementMethodSchema = z.literal(
+  "bidmesh.negotiate.settle"
+) satisfies z.ZodType<SettlementMethod>;
+
+const settleRpcRequestSchemaBase = rpcEnvelopeCommonSchema.extend({
+  method: settlementMethodSchema,
+  deal_id: z.string().min(1),
+  body: settleRequestSchema
+});
+
 function withMatchingDealId<
   T extends z.ZodObject<{
     deal_id: z.ZodString;
@@ -414,6 +428,7 @@ export const counterRpcRequestSchema = withMatchingDealId(counterRpcRequestSchem
 export const acceptRpcRequestSchema = withMatchingDealId(acceptRpcRequestSchemaBase);
 export const walkRpcRequestSchema = withMatchingDealId(walkRpcRequestSchemaBase);
 export const statusRpcRequestSchema = withMatchingDealId(statusRpcRequestSchemaBase);
+export const settleRpcRequestSchema = withMatchingDealId(settleRpcRequestSchemaBase);
 
 export const rpcRequestUnionSchema = z.discriminatedUnion("method", [
   openRpcRequestSchema,

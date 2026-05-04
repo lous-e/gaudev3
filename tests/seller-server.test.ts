@@ -10,6 +10,7 @@ import type {
   CounterRequest,
   OpenRequest,
   SellerPolicy,
+  SettleRequest,
   StatusRequest,
   WalkRequest
 } from "../src/types";
@@ -101,6 +102,61 @@ function signedEnvelope<TBody extends RpcBody>(
 function postRpc(app: ReturnType<typeof createApp>, envelope: ReturnType<typeof signedEnvelope<RpcBody>>) {
   return request(app)
     .post("/rpc")
+    .set("x-bidmesh-auth", envelope.authToken)
+    .send({
+      protocol: envelope.protocol,
+      method: envelope.method,
+      deal_id: envelope.deal_id,
+      from_pubkey: envelope.from_pubkey,
+      to_pubkey: envelope.to_pubkey,
+      round: envelope.round,
+      timestamp: envelope.timestamp,
+      expires_at: envelope.expires_at,
+      signature: envelope.signature,
+      body: envelope.body
+    });
+}
+
+function signedSettlementEnvelope(
+  body: SettleRequest,
+  options: {
+    dealId: string;
+    round: number;
+    fromPubkey?: keyof typeof buyerSecrets;
+    toPubkey?: string;
+    timestamp?: string;
+    expiresAt?: string;
+  }
+) {
+  const timestamp = options.timestamp ?? currentTime;
+  const envelope = {
+    protocol: "nuff/v1" as const,
+    method: "bidmesh.negotiate.settle" as const,
+    deal_id: options.dealId,
+    from_pubkey: options.fromPubkey ?? "buyer-pubkey",
+    to_pubkey: options.toPubkey ?? "seller-pubkey",
+    round: options.round,
+    timestamp,
+    expires_at: options.expiresAt ?? addMinutes(timestamp, 5),
+    body
+  };
+
+  return {
+    ...envelope,
+    signature: "mock" as const,
+    authToken: createMockAuthToken(
+      envelope,
+      buyerSecrets[options.fromPubkey ?? "buyer-pubkey"]
+    )
+  };
+}
+
+function postSettle(
+  app: ReturnType<typeof createApp>,
+  envelope: ReturnType<typeof signedSettlementEnvelope>
+) {
+  return request(app)
+    .post(`/settle/${envelope.deal_id}`)
     .set("x-bidmesh-auth", envelope.authToken)
     .send({
       protocol: envelope.protocol,
@@ -347,7 +403,7 @@ describe("seller server", () => {
       )
     );
 
-    await postRpc(
+    const accept = await postRpc(
       app,
       signedEnvelope(
         "bidmesh.negotiate.accept",
@@ -362,12 +418,20 @@ describe("seller server", () => {
     );
 
     currentTime = addMinutes(currentTime, 3);
-    const settle = await request(app).post(`/settle/${open.body.deal_id}`).send({
-      accepted_price: 5,
-      currency: "USDC",
-      buyer_pubkey: "buyer-pubkey",
-      human_confirmation: true
-    });
+    const settle = await postSettle(
+      app,
+      signedSettlementEnvelope(
+        {
+          deal_id: open.body.deal_id,
+          accepted_price: 5,
+          currency: "USDC",
+          buyer_pubkey: "buyer-pubkey",
+          human_confirmation: true,
+          settlement_nonce: accept.body.payment_required.settlement_nonce
+        },
+        { dealId: open.body.deal_id, round: 4 }
+      )
+    );
 
     expect(settle.body.closed).toBe(true);
   });
@@ -390,7 +454,7 @@ describe("seller server", () => {
       )
     );
 
-    await postRpc(
+    const accept = await postRpc(
       app,
       signedEnvelope(
         "bidmesh.negotiate.accept",
@@ -405,12 +469,20 @@ describe("seller server", () => {
     );
 
     currentTime = addMinutes(currentTime, 11);
-    const settle = await request(app).post(`/settle/${open.body.deal_id}`).send({
-      accepted_price: 5,
-      currency: "USDC",
-      buyer_pubkey: "buyer-pubkey",
-      human_confirmation: true
-    });
+    const settle = await postSettle(
+      app,
+      signedSettlementEnvelope(
+        {
+          deal_id: open.body.deal_id,
+          accepted_price: 5,
+          currency: "USDC",
+          buyer_pubkey: "buyer-pubkey",
+          human_confirmation: true,
+          settlement_nonce: accept.body.payment_required.settlement_nonce
+        },
+        { dealId: open.body.deal_id, round: 4, expiresAt: accept.body.payment_required.expires_at }
+      )
+    );
 
     expect(settle.body.closed).toBe(true);
   });
@@ -508,12 +580,20 @@ describe("seller server", () => {
 
     expect(accept.body.accepted).toBe(true);
 
-    const settle = await request(app).post(`/settle/${open.body.deal_id}`).send({
-      accepted_price: 5,
-      currency: "USDC",
-      buyer_pubkey: "buyer-pubkey",
-      human_confirmation: true
-    });
+    const settle = await postSettle(
+      app,
+      signedSettlementEnvelope(
+        {
+          deal_id: open.body.deal_id,
+          accepted_price: 5,
+          currency: "USDC",
+          buyer_pubkey: "buyer-pubkey",
+          human_confirmation: true,
+          settlement_nonce: accept.body.payment_required.settlement_nonce
+        },
+        { dealId: open.body.deal_id, round: 4, expiresAt: accept.body.payment_required.expires_at }
+      )
+    );
 
     expect(settle.body.settled).toBe(true);
 
