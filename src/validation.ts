@@ -9,7 +9,42 @@ import type {
 export function validateBuyerAction(
   action: BuyerAction,
   sessionPolicy: BuyerIntent
+): ValidationResult;
+export function validateBuyerAction(
+  action: "open" | "counter" | "accept" | "settle",
+  price: number,
+  sessionPolicy: BuyerIntent,
+  humanConfirmed: boolean
+): ValidationResult;
+export function validateBuyerAction(
+  actionOrType: BuyerAction | "open" | "counter" | "accept" | "settle",
+  priceOrPolicy: number | BuyerIntent,
+  maybePolicy?: BuyerIntent,
+  humanConfirmed = false
 ): ValidationResult {
+  let action: BuyerAction;
+  if (typeof actionOrType === "string") {
+    if (actionOrType === "settle") {
+      action = {
+        type: "settle",
+        amount: priceOrPolicy as number,
+        accepted_price: priceOrPolicy as number,
+        human_confirmation: humanConfirmed
+      };
+    } else {
+      action = {
+        type: actionOrType,
+        price: priceOrPolicy as number
+      };
+    }
+  } else {
+    action = actionOrType;
+  }
+  const sessionPolicy =
+    typeof actionOrType === "string"
+      ? (maybePolicy as BuyerIntent)
+      : (priceOrPolicy as BuyerIntent);
+
   switch (action.type) {
     case "open":
       if (action.price > sessionPolicy.max_price) {

@@ -1,0 +1,31 @@
+# Red-Team Run: 2026-05-04_2114_b1bb7e3_complete-developer-2-phase-4-polish
+
+**Commit:** `b1bb7e39692a8e9c839f8617980c32d8a3414ced`
+**Message:** Complete developer 2 phase 4 polish
+**Date:** 2026-05-04T21:14:32Z
+**Files scanned:** 1
+
+---
+
+## `src/demo.ts`
+
+```json
+{"file":"src/demo.ts","category":"SSRF","anchor":"main","severity":"High","summary":"SELLER_URL env var is passed unvalidated to runBuyerNegotiation, enabling requests to internal services","exploit":"SELLER_URL=http://169.254.169.254/latest/meta-data/ node demo.ts","fix":"Validate SELLER_URL is an allowed scheme+host (e.g., allowlist or reject non-http(s) and private IP ranges) before use"}
+{"file":"src/demo.ts","category":"AUTHENTICATION","anchor":"module","severity":"High","summary":"SELLER_PUBKEY is a hardcoded literal string 'mock-seller-pubkey', providing no real cryptographic seller authentication","exploit":"Any party can impersonate the seller; buyer blindly trusts responses without signature verification","fix":"Load a real public key from a secure config or KMS; reject any response that does not pass signature verification"}
+{"file":"src/demo.ts","category":"LOG_INJECTION","anchor":"main","severity":"Medium","summary":"result.txHash and result.artifact from seller-controlled response are interpolated into console.log without sanitization","exploit":"Seller returns txHash: \"abc\\n[Settled] txHash: attacker-controlled\" to forge log lines","fix":"Strip or encode newlines and ANSI escape sequences before logging external string values"}
+{"file":"src/demo.ts","category":"LOG_INJECTION","anchor":"askForHumanConfirmation","severity":"Medium","summary":"summary string (built from seller data) is written directly to terminal via rl.question, enabling terminal escape injection","exploit":"Seller crafts a proposal summary containing ANSI sequences (e.g., \\x1b[2J) to clear screen or spoof UI elements","fix":"Strip ANSI escape codes and control characters from summary before displaying to terminal"}
+{"file":"src/demo.ts","category":"BUSINESS_LOGIC","anchor":"main","severity":"Medium","summary":"strategy.opening_offer (hardcoded 4) can exceed intent.max_price when BUYER_MAX_PRICE < 4, creating contradictory negotiation state","exploit":"BUYER_MAX_PRICE=2 → max_price=2, target_price=2, but opening_offer=4 > max_price; buyer opens above its own ceiling","fix":"Derive opening_offer and preferred_price from maxPrice at runtime rather than hardcoding them"}
+{"file":"src/demo.ts","category":"SILENT_FAILURE","anchor":"main","severity":"Medium","summary":"app.listen() result is not monitored for errors; port-bind failures are silently swallowed until the negotiation attempt fails","exploit":"Set PORT=80 (privileged); server silently fails to bind; buyer connects to nothing or a different service on that port","fix":"Attach an 'error' event listener on server and reject/throw so startup failure is surfaced immediately"}
+{"file":"src/demo.ts","category":"DOS","anchor":"main","severity":"Medium","summary":"server.close() in finally block hangs indefinitely if the buyer agent holds an open keep-alive connection","exploit":"runBuyerNegotiation leaves an HTTP keep-alive socket open; server.close() never calls back; process hangs forever","fix":"Call server.closeAllConnections() (Node ≥18) before server.close(), or set a hard timeout that calls server.destroy()"}
+{"file":"src/demo.ts","category":"INPUT_VALIDATION","anchor":"module","severity":"Medium","summary":"SELLER_PORT is derived via Number() with no range or integer check; invalid PORT env var yields NaN and silently binds to random port 0","exploit":"PORT=abc → SELLER_PORT=NaN → listen(NaN) binds to port 0; sellerUrl becomes 'http://localhost:NaN' (invalid) causing connection failure","fix":"Validate PORT is a finite integer in range 1–65535, matching the same pattern used for BUYER_MAX_PRICE"}
+{"file":"src/demo.ts","category":"REPLAY_ATTACK","anchor":"main","severity":"Medium","summary":"Mock public key and absence of real signature verification mean any recorded negotiation message can be replayed","exploit":"Capture a valid accepted-offer message and replay it to trigger re-settlement at the same price without fresh consent","fix":"Implement nonce/timestamp-based message signing verified against a real seller public key; reject replayed nonces"}
+{"file":"src/demo.ts","category":"DOS","anchor":"askForHumanConfirmation","severity":"Low","summary":"readline.question has no timeout; process blocks indefinitely on stdin waiting for human confirmation","exploit":"Automated or headless environment where stdin is closed/empty causes the process to hang until killed externally","fix":"Race rl.question against a timeout Promise; reject and close the interface if no answer arrives within a reasonable deadline"}
+{"file":"src/demo.ts","category":"NUMERIC_EDGE_CASE","anchor":"main","severity":"Low","summary":"BUYER_MAX_PRICE accepts arbitrarily large finite values (e.g., 1e308) with no upper bound check","exploit":"BUYER_MAX_PRICE=1e308 passes isFinite and >0 checks; downstream arithmetic may overflow or produce nonsensical offers","fix":"Add an upper-bound sanity check (e.g., maxPrice <= 1_000_000) appropriate to the currency denomination"}
+{"file":"src/demo.ts","category":"RACE_CONDITION","anchor":"main","severity":"Low","summary":"runBuyerNegotiation is called immediately after app.listen() without awaiting the 'listening' event; buyer may connect before server is ready","exploit":"On a loaded system the buyer's first HTTP request arrives before the TCP socket is bound, causing ECONNREFUSED","fix":"Wrap app.listen() in a Promise that resolves on the 'listening' event and await it before calling runBuyerNegotiation"}
+{"file":"src/demo.ts","category":"INFO_DISCLOSURE","anchor":"main","severity":"Low","summary":"Seller's minimum (floor) price is logged to the shared console, visible to the buyer process and any log aggregator","exploit":"console.log discloses min_price=4.5; a buyer reading combined stdout learns the seller's true reservation price before negotiating","fix":"Keep seller-side policy details out of shared console output; log them only to a seller-specific log stream or omit floor price"}
+```
+
+---
+
+**Findings this run:** 13
+**Total open issues (alpha):** 86

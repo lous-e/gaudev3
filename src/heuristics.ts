@@ -44,12 +44,42 @@ export function decideBuyerMove(input: {
   return "counter";
 }
 
-export function nextBuyerCounter(input: {
-  openingOffer: number;
-  maxPrice: number;
-  round: number;
-  maxRounds: number;
-}): number {
+export function nextBuyerCounter(
+  input: {
+    openingOffer: number;
+    maxPrice: number;
+    round: number;
+    maxRounds: number;
+  }
+): number;
+export function nextBuyerCounter(
+  openingOffer: number,
+  maxPrice: number,
+  round: number,
+  maxRounds: number
+): number;
+export function nextBuyerCounter(
+  inputOrOpeningOffer:
+    | {
+        openingOffer: number;
+        maxPrice: number;
+        round: number;
+        maxRounds: number;
+      }
+    | number,
+  maxPrice?: number,
+  round?: number,
+  maxRounds?: number
+): number {
+  const input =
+    typeof inputOrOpeningOffer === "number"
+      ? {
+          openingOffer: inputOrOpeningOffer,
+          maxPrice: maxPrice as number,
+          round: round as number,
+          maxRounds: maxRounds as number
+        }
+      : inputOrOpeningOffer;
   const next =
     input.openingOffer +
     ((input.maxPrice - input.openingOffer) * input.round) / input.maxRounds;

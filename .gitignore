@@ -1,5 +1,10 @@
-# klodi-plugin — Rust
+# klodi-plugin
 klodi-plugin/*
+
+# Project build and deps
+node_modules/
+dist/
+package-lock.json
 
 # Secrets and credentials
 .env
