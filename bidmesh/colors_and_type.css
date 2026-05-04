@@ -1,0 +1,184 @@
+/* ============================================================
+   BidMesh — Colors & Type Tokens
+   Two co-equal surfaces:
+     · "human"  — warm Notion-soft canvas (#FAFAF8) for buyer dashboards
+     · "agent"  — terminal-native dark (#0A0B0D) for machine-readable consoles
+   ============================================================ */
+
+/* Webfonts: Helvetica Black (display headlines) + Inter (body UI) +
+   JetBrains Mono (negotiation prices, pubkeys, JSON-RPC, audit logs).
+
+   ⚠ HELVETICA LICENSE FLAG ⚠
+   Helvetica is a licensed Linotype/Monotype family. The TTF in fonts/
+   was uploaded by the brand owner — confirm you hold a web/embedding
+   license before shipping any production surface that uses it.
+
+   Only weight 900 (Black) was provided. We use it on display tier only
+   (h1 page heroes, big-price). Body UI continues to use Inter so the
+   400/500/600 weights stay correct. Provide additional Helvetica weights
+   to expand the display tier. */
+@font-face {
+  font-family: "Helvetica Display";
+  src: url("fonts/Helvetica-Black.ttf") format("truetype");
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+}
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap");
+
+:root {
+  /* ── Type families ─────────────────────────────────────────── */
+  --font-display: "Helvetica Display", "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", "Fira Code", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* ── Type scale (humanist UI; tight tracking on display) ──── */
+  --text-xs:    11px;   /* meta, kbd, table headers (uppercased) */
+  --text-sm:    12px;   /* terminal body, chips */
+  --text-base:  13px;   /* secondary UI text */
+  --text-md:    14px;   /* primary body, nav */
+  --text-lg:    15px;   /* card titles */
+  --text-xl:    18px;   /* item names */
+  --text-2xl:   22px;   /* section headers */
+  --text-3xl:   26px;   /* page H1 */
+  --text-4xl:   32px;   /* current-offer hero */
+  --text-5xl:   44px;   /* live theater big-price */
+
+  --tracking-tight:  -0.02em;  /* H1 / big numbers */
+  --tracking-snug:   -0.01em;  /* H2 / card titles */
+  --tracking-normal: -0.005em; /* body */
+  --tracking-wide:    0.04em;  /* terminal labels */
+  --tracking-wider:   0.06em;  /* uppercase eyebrows */
+  --tracking-widest:  0.12em;  /* SIDE HEADERS in theater */
+
+  --leading-tight:  1.2;
+  --leading-snug:   1.4;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.55;
+  --leading-loose:   1.7;
+
+  /* ── HUMAN PALETTE (Notion / Linear / Stripe DNA) ─────────── */
+  /* Warm neutrals — paper, linen, stone */
+  --h-bg:           #FAFAF8;   /* page */
+  --h-bg-2:         #F4F3EF;   /* sidebar / search field */
+  --h-bg-3:         #F0EFEA;   /* kbd, hover, tag */
+  --h-surface:      #FFFFFF;   /* cards */
+  --h-surface-soft: #FCFBF8;   /* table headers, footers */
+  --h-border:       #E8E6DF;   /* hairlines */
+  --h-border-soft:  #F0EFEA;   /* table rows */
+  --h-border-strong:#E0DED5;   /* button strokes */
+
+  /* Foreground */
+  --h-fg:           #1B1B18;   /* primary ink */
+  --h-fg-2:         #5C5A52;   /* secondary */
+  --h-fg-3:         #7A7872;   /* tertiary, muted */
+  --h-fg-4:         #9B998E;   /* placeholder, dividers */
+
+  /* Brand accent — sage / forest. NEVER teal, never indigo. */
+  --h-accent:       #2C4F3D;   /* logo-mark dark */
+  --h-accent-mid:   #3A6B5A;   /* sage text accent */
+  --h-accent-soft:  #5A8268;   /* sage mid (gradient stop) */
+  --h-accent-bg:    #EBF1EE;   /* sage pill bg */
+  --h-accent-bd:    #D5E3DC;   /* sage pill border */
+
+  /* Semantic — success / warn / danger */
+  --h-success:      #2F6B3A;
+  --h-success-bg:   #EAF2EA;
+  --h-success-bd:   #D5E5D6;
+  --h-warn:         #8A6500;
+  --h-warn-bg:      #FAF1DC;
+  --h-warn-bd:      #F0E2B0;
+  --h-warn-tint:    #FFFDF6;   /* confirm-payment card bg */
+  --h-danger:       #9B2C2C;
+  --h-danger-bg:    #F9EAEA;
+  --h-danger-bd:    #F1D5D5;
+  --h-danger-tint:  #FFF7F7;   /* blocked audit row bg */
+
+  /* ── AGENT PALETTE (terminal / tmux / IDE) ─────────────────── */
+  --a-bg:           #0A0B0D;   /* terminal */
+  --a-bg-2:         #08090B;   /* sidebar / inspector */
+  --a-bg-3:         #0C0D10;   /* code blocks, big-stat tile */
+  --a-border:       #1A1C20;   /* hairlines */
+  --a-border-soft:  #131418;   /* row separators */
+  --a-border-blue:  #1A2940;   /* tag chip border */
+
+  --a-fg:           #C7C9CC;   /* primary readable text */
+  --a-fg-bright:    #FAFAF8;   /* values, strong */
+  --a-fg-2:         #9DA1A8;   /* secondary */
+  --a-fg-3:         #6B6F75;   /* tertiary */
+  --a-fg-4:         #5C6068;   /* tick-rule numbers */
+  --a-fg-5:         #3D4046;   /* placeholder, dim */
+
+  /* Syntactic accents — a 4-stop palette mapped to roles */
+  --a-green:        #7DE39A;   /* success, positive, prompt $, online */
+  --a-green-soft:   rgba(125,227,154,0.06);
+  --a-blue:         #6EA8FE;   /* methods, identifiers, outbound */
+  --a-blue-soft:    rgba(110,168,254,0.10);
+  --a-amber:        #F1C46B;   /* counterparty, list, warn */
+  --a-amber-soft:   rgba(241,196,107,0.10);
+  --a-red:          #FF6B6B;   /* shim block, walk, error */
+  --a-red-bright:   #FF8B8B;   /* secondary danger label */
+  --a-red-soft:     rgba(255,107,107,0.05);
+
+  /* ── Spacing / rhythm ──────────────────────────────────────── */
+  --space-1:  4px;
+  --space-2:  6px;
+  --space-3:  8px;
+  --space-4:  10px;
+  --space-5:  12px;
+  --space-6:  14px;
+  --space-7:  16px;
+  --space-8:  18px;
+  --space-9:  20px;
+  --space-10: 24px;
+  --space-11: 28px;
+  --space-12: 32px;
+  --space-14: 40px;
+
+  /* ── Radii — small, restrained. Never full-pill except chips ── */
+  --radius-xs:  2px;   /* terminal buttons / code blocks */
+  --radius-sm:  3px;   /* terminal pills */
+  --radius-md:  6px;   /* inputs, marketplace buttons */
+  --radius-lg:  7px;   /* primary buttons, search field */
+  --radius-xl:  8px;   /* tints, inline confirms */
+  --radius-2xl: 10px;  /* cards (canonical card radius) */
+  --radius-pill: 999px;
+
+  /* ── Shadows — practically none. Borders carry separation. ── */
+  --shadow-none: none;
+  --shadow-glow-green: 0 0 18px var(--a-green);
+  --shadow-glow-blue:  0 0 6px rgba(110,168,254,0.6);
+  --shadow-glow-red:   0 0 16px rgba(255,107,107,0.35);
+
+  /* ── Motion ────────────────────────────────────────────────── */
+  --ease-out: cubic-bezier(.4, 0, .2, 1);
+  --dur-fast:   180ms;
+  --dur-base:   500ms;
+  --dur-slow:   1100ms;   /* base inter-step delay in transcript playback */
+
+  /* ── Semantic typographic roles ────────────────────────────── */
+  --h1-size: var(--text-3xl);   --h1-weight: 600; --h1-track: var(--tracking-tight);
+  --h2-size: var(--text-lg);    --h2-weight: 600; --h2-track: var(--tracking-snug);
+  --h3-size: var(--text-md);    --h3-weight: 600;
+  --eyebrow-size: var(--text-xs); --eyebrow-weight: 500; --eyebrow-track: var(--tracking-wider);
+  --body-size: var(--text-md);  --body-weight: 400;
+  --meta-size: var(--text-base); --meta-weight: 400;
+  --code-size: var(--text-xs);  --code-weight: 400;
+}
+
+/* ── Semantic helpers (apply to elements) ──────────────────── */
+.h-h1   { font: var(--h1-weight) var(--h1-size)/var(--leading-tight) var(--font-sans); letter-spacing: var(--h1-track); color: var(--h-fg); margin: 0; }
+.h-h2   { font: var(--h2-weight) var(--h2-size)/var(--leading-snug) var(--font-sans); letter-spacing: var(--h2-track); color: var(--h-fg); margin: 0; }
+.h-eyebrow {
+  font: var(--eyebrow-weight) var(--eyebrow-size)/1 var(--font-sans);
+  letter-spacing: var(--eyebrow-track);
+  text-transform: uppercase; color: var(--h-fg-3);
+}
+.h-body { font: var(--body-weight) var(--body-size)/var(--leading-normal) var(--font-sans); color: var(--h-fg); letter-spacing: var(--tracking-normal); }
+.h-mono { font-family: var(--font-mono); font-size: var(--code-size); color: var(--h-fg-2); }
+
+.a-body { font-family: var(--font-mono); font-size: var(--text-sm); color: var(--a-fg); line-height: var(--leading-relaxed); }
+.a-prompt { color: var(--a-green); }
+.a-method { color: var(--a-blue); }
+.a-flag   { color: var(--a-amber); }
+.a-dim    { color: var(--a-fg-5); }

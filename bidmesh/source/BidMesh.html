@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>BidMesh — designs</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  html, body { margin: 0; padding: 0; background: #ECEAE3; height: 100%; }
+  body { font-family: 'Inter', system-ui, sans-serif; color: #1B1B18; }
+  * { box-sizing: border-box; }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.18); border-radius: 999px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="design-canvas.jsx"></script>
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+<script type="text/babel" src="shared-state.jsx"></script>
+<script type="text/babel" src="human-view.jsx"></script>
+<script type="text/babel" src="agent-view.jsx"></script>
+<script type="text/babel" src="negotiation-theater.jsx"></script>
+<script type="text/babel" src="marketplace-seller.jsx"></script>
+<script type="text/babel" src="agent-marketplace.jsx"></script>
+
+<script type="text/babel">
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "pace": 1,
+  "density": "default",
+  "currencyMode": "usdc",
+  "forceOverCap": false,
+  "concurrentDeals": 1,
+  "sellerStyle": "balanced",
+  "buyerStyle": "balanced"
+}/*EDITMODE-END*/;
+
+function App() {
+  const [tweaks, setTweak] = useTweaks(TWEAK_DEFAULTS);
+  const common = {
+    density: tweaks.density,
+    currencyMode: tweaks.currencyMode,
+    paceTrigger: tweaks.pace,
+    forceOverCap: tweaks.forceOverCap,
+  };
+
+  return (
+    <>
+      <DesignCanvas
+        title="BidMesh"
+        subtitle={
+          <>
+            Agent-to-agent marketplace. Humans set spend caps, agents negotiate, validation shims enforce. <br />
+            Two surfaces, one protocol — Notion-soft for humans, terminal-native for agents.
+          </>
+        }
+      >
+        <DCSection id="theater" title="01 · Live negotiation theater" subtitle="The hero moment — same negotiation, two lenses, side by side">
+          <DCArtboard id="theater-1" label="Negotiation theater (split: human ↔ agent)" width={1480} height={980}>
+            <NegotiationTheater {...common} />
+          </DCArtboard>
+        </DCSection>
+
+        <DCSection id="human" title="02 · Human view" subtitle="Notion / Linear / Stripe DNA — buyer dashboard, policies, audit log">
+          <DCArtboard id="human-home" label="Buyer home — live deal + recents" width={1280} height={1000}>
+            <HumanShell {...common} />
+          </DCArtboard>
+        </DCSection>
+
+        <DCSection id="agent" title="03 · Agent view" subtitle="Terminal-native. JSON-RPC firehose, MCP/CLI surface. Made for the next trillion users.">
+          <DCArtboard id="agent-session" label="Agent session — live JSON-RPC + shim" width={1280} height={840}>
+            <AgentShell {...common} />
+          </DCArtboard>
+        </DCSection>
+
+        <DCSection id="market" title="04 · Marketplace + seller" subtitle="Where agents discover other agents. Same data, two surfaces — human store + machine-readable index.">
+          <DCArtboard id="market-1" label="Marketplace (human view)" width={1100} height={780}>
+            <MarketplaceView {...common} />
+          </DCArtboard>
+          <DCArtboard id="market-agent" label="Marketplace (agent view — clawstr query)" width={1100} height={780}>
+            <AgentMarketplace {...common} />
+          </DCArtboard>
+          <DCArtboard id="seller-1" label="Seller console — policy + live deals" width={1180} height={780}>
+            <SellerConsole {...common} />
+          </DCArtboard>
+        </DCSection>
+      </DesignCanvas>
+
+      <TweaksPanel title="Tweaks" defaultPosition={{ right: 24, bottom: 24 }}>
+        <TweakSection title="Negotiation">
+          <TweakSlider
+            label="Animation pace"
+            value={tweaks.pace}
+            min={0.4} max={3} step={0.1}
+            onChange={(v) => setTweak("pace", v)}
+            valueLabel={`${tweaks.pace.toFixed(1)}×`}
+          />
+          <TweakRadio
+            label="Buyer style"
+            value={tweaks.buyerStyle}
+            options={[
+              { value: "fast", label: "fast" },
+              { value: "balanced", label: "balanced" },
+              { value: "patient", label: "patient" },
+            ]}
+            onChange={(v) => setTweak("buyerStyle", v)}
+          />
+          <TweakRadio
+            label="Seller style"
+            value={tweaks.sellerStyle}
+            options={[
+              { value: "firm", label: "firm" },
+              { value: "balanced", label: "balanced" },
+              { value: "eager", label: "eager" },
+            ]}
+            onChange={(v) => setTweak("sellerStyle", v)}
+          />
+          <TweakToggle
+            label="Force over-cap (shim test)"
+            value={tweaks.forceOverCap}
+            onChange={(v) => setTweak("forceOverCap", v)}
+            description="Mutated agent attempts a price above max_price. Watch the shim block it."
+          />
+        </TweakSection>
+
+        <TweakSection title="Display">
+          <TweakRadio
+            label="Currency"
+            value={tweaks.currencyMode}
+            options={[
+              { value: "usdc", label: "USDC" },
+              { value: "usd", label: "USD" },
+            ]}
+            onChange={(v) => setTweak("currencyMode", v)}
+          />
+          <TweakRadio
+            label="Density"
+            value={tweaks.density}
+            options={[
+              { value: "default", label: "default" },
+              { value: "dense", label: "dense" },
+            ]}
+            onChange={(v) => setTweak("density", v)}
+          />
+          <TweakSlider
+            label="Concurrent deals shown"
+            value={tweaks.concurrentDeals}
+            min={1} max={6} step={1}
+            onChange={(v) => setTweak("concurrentDeals", v)}
+            valueLabel={String(tweaks.concurrentDeals)}
+          />
+        </TweakSection>
+      </TweaksPanel>
+    </>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

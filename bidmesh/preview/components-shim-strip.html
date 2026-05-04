@@ -1,0 +1,15 @@
+<!doctype html>
+<html><head><meta charset="utf-8"/>
+<title>Shim strip</title>
+<link rel="stylesheet" href="../colors_and_type.css"/>
+<style>body{margin:0;padding:18px;background:var(--a-bg);color:var(--a-fg);font-family:var(--font-mono);font-size:11px}
+.strip{border:1px solid var(--a-border);border-left:3px solid var(--a-green);padding:10px 14px;display:flex;align-items:center;gap:14px;margin-bottom:10px;flex-wrap:wrap}
+.strip.bad{border-color:var(--a-red);border-left-color:var(--a-red);background:var(--a-red-soft)}
+.lbl{font-family:var(--font-sans);font-size:11px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;color:var(--a-green)}
+.lbl.bad{color:var(--a-red)}
+.text{color:var(--a-fg-3);flex:1}
+.pill{display:inline-flex;padding:1px 6px;border-radius:2px;font-size:10px;text-transform:uppercase;letter-spacing:0.05em;font-weight:500}
+</style></head><body>
+<div class="strip"><span class="lbl">validation_shim</span><span class="text">// pure function. no LLM. evaluates every outbound call against intent.max_price</span><span class="pill" style="background:rgba(125,227,154,0.10);color:var(--a-green)">allow</span><span class="pill" style="background:rgba(110,168,254,0.10);color:var(--a-blue)">x402 ready</span></div>
+<div class="strip bad"><span class="lbl bad">validation_shim</span><span class="text">denied <span style="color:var(--a-red)">7.00 USDC</span> · accepted_price_exceeds_max_price · audit.log appended</span><span class="pill" style="background:rgba(255,107,107,0.12);color:var(--a-red)">denied 1</span></div>
+</body></html>

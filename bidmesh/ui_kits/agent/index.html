@@ -1,0 +1,52 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8"/>
+<title>BidMesh — Agent UI Kit</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
+<style>
+html,body{margin:0;padding:0;height:100%;background:#0A0B0D}
+#root{height:100vh;width:100%}
+*{box-sizing:border-box}
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-track{background:#08090B}
+::-webkit-scrollbar-thumb{background:#1A1C20;border-radius:4px}
+</style>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" src="atoms.jsx"></script>
+<script type="text/babel" src="shell.jsx"></script>
+<script type="text/babel" src="screens.jsx"></script>
+
+<script type="text/babel" data-presets="react">
+function App() {
+  const [tab, setTab] = React.useState("session");
+  const [blocked, setBlocked] = React.useState(false);
+  return (
+    <AShell tab={tab} setTab={setTab}>
+      {tab === "session" && (
+        <>
+          <ASession blocked={blocked} />
+          <div style={{ padding: "0 14px 14px", borderTop: `1px solid ${A.border}`, marginTop: -4, display: "flex", gap: 8 }}>
+            <ABtn tone="dim" onClick={() => setBlocked(false)}>scenario: ok</ABtn>
+            <ABtn tone="red" onClick={() => setBlocked(true)}>scenario: shim_block</ABtn>
+          </div>
+        </>
+      )}
+      {tab === "mcp" && <AMCPDocs />}
+      {tab === "audit" && <AAuditTail />}
+    </AShell>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

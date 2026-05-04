@@ -1,0 +1,36 @@
+<!doctype html>
+<html><head><meta charset="utf-8"/>
+<title>Spacing & radii</title>
+<link rel="stylesheet" href="../colors_and_type.css"/>
+<style>body{margin:0;padding:18px;background:var(--h-bg);color:var(--h-fg);font-family:var(--font-sans);font-size:12px}
+.h{font-size:11px;letter-spacing:0.06em;text-transform:uppercase;color:var(--h-fg-3);font-weight:500;margin:0 0 8px}
+.row{display:flex;gap:14px;align-items:flex-end;margin-bottom:12px}
+.box{background:var(--h-accent-bg);border:1px solid var(--h-accent-bd)}
+.lab{font-family:var(--font-mono);font-size:10.5px;color:var(--h-fg-2);margin-top:6px;text-align:center}
+.radii{display:flex;gap:14px}
+.r{width:64px;height:48px;background:#fff;border:1px solid var(--h-border)}
+</style></head><body>
+<div class="h">Spacing scale (px)</div>
+<div class="row">
+<div><div class="box" style="width:4px;height:24px"></div><div class="lab">4</div></div>
+<div><div class="box" style="width:6px;height:24px"></div><div class="lab">6</div></div>
+<div><div class="box" style="width:8px;height:24px"></div><div class="lab">8</div></div>
+<div><div class="box" style="width:10px;height:24px"></div><div class="lab">10</div></div>
+<div><div class="box" style="width:12px;height:24px"></div><div class="lab">12</div></div>
+<div><div class="box" style="width:14px;height:24px"></div><div class="lab">14</div></div>
+<div><div class="box" style="width:16px;height:24px"></div><div class="lab">16</div></div>
+<div><div class="box" style="width:20px;height:24px"></div><div class="lab">20</div></div>
+<div><div class="box" style="width:24px;height:24px"></div><div class="lab">24</div></div>
+<div><div class="box" style="width:32px;height:24px"></div><div class="lab">32</div></div>
+<div><div class="box" style="width:40px;height:24px"></div><div class="lab">40</div></div>
+</div>
+<div class="h">Radii</div>
+<div class="radii">
+<div><div class="r" style="border-radius:2px"></div><div class="lab">xs · 2</div></div>
+<div><div class="r" style="border-radius:3px"></div><div class="lab">sm · 3</div></div>
+<div><div class="r" style="border-radius:6px"></div><div class="lab">md · 6</div></div>
+<div><div class="r" style="border-radius:7px"></div><div class="lab">lg · 7</div></div>
+<div><div class="r" style="border-radius:10px"></div><div class="lab">2xl · 10 (card)</div></div>
+<div><div class="r" style="border-radius:999px;width:96px"></div><div class="lab">pill</div></div>
+</div>
+</body></html>

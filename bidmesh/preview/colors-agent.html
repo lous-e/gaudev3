@@ -1,0 +1,32 @@
+<!doctype html>
+<html><head><meta charset="utf-8"/>
+<title>BidMesh — Color tokens (agent)</title>
+<link rel="stylesheet" href="../colors_and_type.css"/>
+<style>
+body{margin:0;padding:18px;background:var(--a-bg);font-family:var(--font-mono);color:var(--a-fg);font-size:11px}
+.row{display:grid;grid-template-columns:repeat(6,1fr);gap:8px}
+.sw{height:54px;border-radius:3px;border:1px solid var(--a-border)}
+.lab{margin-top:6px;color:var(--a-fg-3);line-height:1.4}
+.h{font-family:var(--font-sans);font-size:10.5px;letter-spacing:0.08em;text-transform:uppercase;color:var(--a-green);font-weight:600;margin:0 0 8px}
+.grp{margin-bottom:14px}
+.dim{color:var(--a-fg-5)}
+</style></head><body>
+<div class="grp"><div class="h">// canvas + chrome</div>
+<div class="row">
+<div><div class="sw" style="background:var(--a-bg)"></div><div class="lab">--a-bg<br/>#0A0B0D</div></div>
+<div><div class="sw" style="background:var(--a-bg-2)"></div><div class="lab">--a-bg-2<br/>#08090B</div></div>
+<div><div class="sw" style="background:var(--a-bg-3)"></div><div class="lab">--a-bg-3<br/>#0C0D10</div></div>
+<div><div class="sw" style="background:var(--a-border)"></div><div class="lab">--a-border<br/>#1A1C20</div></div>
+<div><div class="sw" style="background:var(--a-border-blue)"></div><div class="lab">tag border<br/>#1A2940</div></div>
+<div><div class="sw" style="background:var(--a-fg)"></div><div class="lab" style="color:var(--a-fg-3)">--a-fg<br/>#C7C9CC</div></div>
+</div></div>
+<div class="grp"><div class="h">// syntax accents — green/blue/amber/red</div>
+<div class="row">
+<div><div class="sw" style="background:var(--a-green)"></div><div class="lab">--a-green<br/>#7DE39A · success</div></div>
+<div><div class="sw" style="background:var(--a-blue)"></div><div class="lab">--a-blue<br/>#6EA8FE · method</div></div>
+<div><div class="sw" style="background:var(--a-amber)"></div><div class="lab">--a-amber<br/>#F1C46B · seller</div></div>
+<div><div class="sw" style="background:var(--a-red)"></div><div class="lab">--a-red<br/>#FF6B6B · blocked</div></div>
+<div><div class="sw" style="background:var(--a-red-bright)"></div><div class="lab">--a-red-bright<br/>#FF8B8B</div></div>
+<div><div class="sw" style="background:linear-gradient(135deg,var(--a-bg-3),var(--a-green))"></div><div class="lab">prompt mark<br/>logo agent</div></div>
+</div></div>
+</body></html>
