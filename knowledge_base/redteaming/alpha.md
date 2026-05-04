@@ -1,6 +1,6 @@
 # BidMesh — Open Security Issues (Alpha)
 
-**Last updated:** 2026-05-04T20:59:25Z  |  **Open:** 79  |  **Resolved:** 0
+**Last updated:** 2026-05-04T21:16:06Z  |  **Open:** 86  |  **Resolved:** 0
 
 > This file is auto-generated. Mark an issue resolved by setting `"resolved": true`
 > and `"resolved_in": "<commit_sha>"` in `alpha.json`, then re-run the hook.
@@ -274,19 +274,26 @@
 
 **Fix:** Log the URL server-side only; return a generic error to callers that omits the raw URL
 
-## `src/demo.ts`  (9 open)
+## `src/demo.ts`  (16 open)
 
 | ID | Category | Anchor | Severity | Summary | First Seen | Last Confirmed |
 |----|----------|--------|----------|---------|------------|----------------|
-| `96d105b93a4f` | AUTHENTICATION | `module` | **High** | SELLER_PUBKEY is a hardcoded literal 'mock-seller-pubkey' providing no real cryptographic seller identity verification | abbf92d | abbf92d |
-| `c0ba1b58e3f0` | SSRF | `main` | **High** | SELLER_URL env var is passed to runBuyerNegotiation without scheme or host validation, enabling SSRF to internal services | abbf92d | abbf92d |
-| `48115d73de95` | RACE_CONDITION | `main` | **Medium** | runBuyerNegotiation is called immediately after app.listen() without awaiting the 'listening' event, so the first request can arrive before the socket is bound | abbf92d | abbf92d |
-| `b1c68694adf7` | INPUT_VALIDATION | `module` | **Medium** | PORT env var is cast with Number() but never range-validated; NaN, 0, negative, or >65535 values silently reach app.listen() | abbf92d | abbf92d |
-| `6063e253d618` | BUSINESS_LOGIC | `main` | **Medium** | opening_offer is hardcoded at 4 while target_price is Math.min(4,maxPrice); when maxPrice<4 the buyer opens above their own price ceiling | abbf92d | abbf92d |
-| `040cab2f40b6` | LOG_INJECTION | `main` | **Low** | result.txHash and result.artifact from the external seller server are interpolated directly into console.log without sanitization | abbf92d | abbf92d |
+| `96d105b93a4f` | AUTHENTICATION | `module` | **High** | SELLER_PUBKEY is a hardcoded literal 'mock-seller-pubkey' providing no real cryptographic seller identity verification | abbf92d | b1bb7e3 |
+| `c0ba1b58e3f0` | SSRF | `main` | **High** | SELLER_URL env var is passed to runBuyerNegotiation without scheme or host validation, enabling SSRF to internal services | abbf92d | b1bb7e3 |
+| `48115d73de95` | RACE_CONDITION | `main` | **Medium** | runBuyerNegotiation is called immediately after app.listen() without awaiting the 'listening' event, so the first request can arrive before the socket is bound | abbf92d | b1bb7e3 |
+| `b1c68694adf7` | INPUT_VALIDATION | `module` | **Medium** | PORT env var is cast with Number() but never range-validated; NaN, 0, negative, or >65535 values silently reach app.listen() | abbf92d | b1bb7e3 |
+| `6063e253d618` | BUSINESS_LOGIC | `main` | **Medium** | opening_offer is hardcoded at 4 while target_price is Math.min(4,maxPrice); when maxPrice<4 the buyer opens above their own price ceiling | abbf92d | b1bb7e3 |
+| `2c3d2dc31158` | LOG_INJECTION | `askForHumanConfirmation` | **Medium** | summary string (built from seller data) is written directly to terminal via rl.question, enabling terminal escape injection | b1bb7e3 | b1bb7e3 |
+| `11944b9ea7fd` | SILENT_FAILURE | `main` | **Medium** | app.listen() result is not monitored for errors; port-bind failures are silently swallowed until the negotiation attempt fails | b1bb7e3 | b1bb7e3 |
+| `9d9225d16ad6` | DOS | `main` | **Medium** | server.close() in finally block hangs indefinitely if the buyer agent holds an open keep-alive connection | b1bb7e3 | b1bb7e3 |
+| `e10fdf486bd5` | REPLAY_ATTACK | `main` | **Medium** | Mock public key and absence of real signature verification mean any recorded negotiation message can be replayed | b1bb7e3 | b1bb7e3 |
+| `040cab2f40b6` | LOG_INJECTION | `main` | **Low** | result.txHash and result.artifact from the external seller server are interpolated directly into console.log without sanitization | abbf92d | b1bb7e3 |
 | `e6bc1886ee61` | STATE_VIOLATION | `main` | **Low** | Local seller server is unconditionally started even when SELLER_URL env var overrides the endpoint, wasting a port binding and running a live HTTP service unnecessarily | abbf92d | abbf92d |
 | `2d8b254022b1` | PARTIAL_FAILURE | `main` | **Low** | If server.close() rejects inside the finally block, it throws and replaces any in-flight negotiation error, making the root cause invisible | abbf92d | abbf92d |
 | `2e00f135e9cc` | INFO_DISCLOSURE | `module` | **Low** | When a non-Error rejection reaches the top-level catch, the raw value is passed to console.error, potentially printing internal objects with sensitive fields | abbf92d | abbf92d |
+| `bef8167ce153` | DOS | `askForHumanConfirmation` | **Low** | readline.question has no timeout; process blocks indefinitely on stdin waiting for human confirmation | b1bb7e3 | b1bb7e3 |
+| `71a07d643898` | NUMERIC_EDGE_CASE | `main` | **Low** | BUYER_MAX_PRICE accepts arbitrarily large finite values (e.g., 1e308) with no upper bound check | b1bb7e3 | b1bb7e3 |
+| `c6c93006f410` | INFO_DISCLOSURE | `main` | **Low** | Seller's minimum (floor) price is logged to the shared console, visible to the buyer process and any log aggregator | b1bb7e3 | b1bb7e3 |
 
 ### `96d105b93a4f` — SELLER_PUBKEY is a hardcoded literal 'mock-seller-pubkey' providing no real cryptographic seller identity verification
 
@@ -318,6 +325,30 @@
 
 **Fix:** Derive opening_offer dynamically as Math.min(4, maxPrice) so it never exceeds the buyer's ceiling
 
+### `2c3d2dc31158` — summary string (built from seller data) is written directly to terminal via rl.question, enabling terminal escape injection
+
+**Exploit:** Seller crafts a proposal summary containing ANSI sequences (e.g., \x1b[2J) to clear screen or spoof UI elements
+
+**Fix:** Strip ANSI escape codes and control characters from summary before displaying to terminal
+
+### `11944b9ea7fd` — app.listen() result is not monitored for errors; port-bind failures are silently swallowed until the negotiation attempt fails
+
+**Exploit:** Set PORT=80 (privileged); server silently fails to bind; buyer connects to nothing or a different service on that port
+
+**Fix:** Attach an 'error' event listener on server and reject/throw so startup failure is surfaced immediately
+
+### `9d9225d16ad6` — server.close() in finally block hangs indefinitely if the buyer agent holds an open keep-alive connection
+
+**Exploit:** runBuyerNegotiation leaves an HTTP keep-alive socket open; server.close() never calls back; process hangs forever
+
+**Fix:** Call server.closeAllConnections() (Node â‰¥18) before server.close(), or set a hard timeout that calls server.destroy()
+
+### `e10fdf486bd5` — Mock public key and absence of real signature verification mean any recorded negotiation message can be replayed
+
+**Exploit:** Capture a valid accepted-offer message and replay it to trigger re-settlement at the same price without fresh consent
+
+**Fix:** Implement nonce/timestamp-based message signing verified against a real seller public key; reject replayed nonces
+
 ### `040cab2f40b6` — result.txHash and result.artifact from the external seller server are interpolated directly into console.log without sanitization
 
 **Exploit:** Seller returns txHash containing '\n[Settled] FAKE_ENTRY\n[Admin] payment-redirected' to inject spurious log lines that deceive operators or downstream log parsers
@@ -341,6 +372,24 @@
 **Exploit:** A rejected promise carrying {apiKey:'sk-live-...', status:'failed'} prints the full object to stderr where it may be captured by log aggregators
 
 **Fix:** Always serialize unknown thrown values safely: String(error) or JSON.stringify with a replacer that redacts known sensitive keys
+
+### `bef8167ce153` — readline.question has no timeout; process blocks indefinitely on stdin waiting for human confirmation
+
+**Exploit:** Automated or headless environment where stdin is closed/empty causes the process to hang until killed externally
+
+**Fix:** Race rl.question against a timeout Promise; reject and close the interface if no answer arrives within a reasonable deadline
+
+### `71a07d643898` — BUYER_MAX_PRICE accepts arbitrarily large finite values (e.g., 1e308) with no upper bound check
+
+**Exploit:** BUYER_MAX_PRICE=1e308 passes isFinite and >0 checks; downstream arithmetic may overflow or produce nonsensical offers
+
+**Fix:** Add an upper-bound sanity check (e.g., maxPrice <= 1_000_000) appropriate to the currency denomination
+
+### `c6c93006f410` — Seller's minimum (floor) price is logged to the shared console, visible to the buyer process and any log aggregator
+
+**Exploit:** console.log discloses min_price=4.5; a buyer reading combined stdout learns the seller's true reservation price before negotiating
+
+**Fix:** Keep seller-side policy details out of shared console output; log them only to a seller-specific log stream or omit floor price
 
 ## `src/heuristics.ts`  (1 open)
 

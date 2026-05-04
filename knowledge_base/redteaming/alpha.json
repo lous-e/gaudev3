@@ -1,7 +1,7 @@
 {
   "_meta": {
-    "last_updated": "2026-05-04T20:59:25Z",
-    "open_count": 79,
+    "last_updated": "2026-05-04T21:16:06Z",
+    "open_count": 86,
     "resolved_count": 0
   },
   "issues": {
@@ -1190,9 +1190,9 @@
           "at": "2026-05-04T20:55:50Z"
         },
         "last_confirmed": {
-          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
-          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
-          "at": "2026-05-04T20:55:50Z"
+          "run": "redteam_2026-05-04_2114_b1bb7e3_complete-developer-2-phase-4-polish",
+          "commit": "b1bb7e39692a8e9c839f8617980c32d8a3414ced",
+          "at": "2026-05-04T21:16:06Z"
         },
         "resolved_in": null
       },
@@ -1211,9 +1211,9 @@
           "at": "2026-05-04T20:55:50Z"
         },
         "last_confirmed": {
-          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
-          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
-          "at": "2026-05-04T20:55:50Z"
+          "run": "redteam_2026-05-04_2114_b1bb7e3_complete-developer-2-phase-4-polish",
+          "commit": "b1bb7e39692a8e9c839f8617980c32d8a3414ced",
+          "at": "2026-05-04T21:16:06Z"
         },
         "resolved_in": null
       },
@@ -1232,9 +1232,9 @@
           "at": "2026-05-04T20:55:50Z"
         },
         "last_confirmed": {
-          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
-          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
-          "at": "2026-05-04T20:55:50Z"
+          "run": "redteam_2026-05-04_2114_b1bb7e3_complete-developer-2-phase-4-polish",
+          "commit": "b1bb7e39692a8e9c839f8617980c32d8a3414ced",
+          "at": "2026-05-04T21:16:06Z"
         },
         "resolved_in": null
       },
@@ -1253,9 +1253,9 @@
           "at": "2026-05-04T20:55:50Z"
         },
         "last_confirmed": {
-          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
-          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
-          "at": "2026-05-04T20:55:50Z"
+          "run": "redteam_2026-05-04_2114_b1bb7e3_complete-developer-2-phase-4-polish",
+          "commit": "b1bb7e39692a8e9c839f8617980c32d8a3414ced",
+          "at": "2026-05-04T21:16:06Z"
         },
         "resolved_in": null
       },
@@ -1274,9 +1274,9 @@
           "at": "2026-05-04T20:55:50Z"
         },
         "last_confirmed": {
-          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
-          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
-          "at": "2026-05-04T20:55:50Z"
+          "run": "redteam_2026-05-04_2114_b1bb7e3_complete-developer-2-phase-4-polish",
+          "commit": "b1bb7e39692a8e9c839f8617980c32d8a3414ced",
+          "at": "2026-05-04T21:16:06Z"
         },
         "resolved_in": null
       },
@@ -1295,9 +1295,9 @@
           "at": "2026-05-04T20:55:50Z"
         },
         "last_confirmed": {
-          "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
-          "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
-          "at": "2026-05-04T20:55:50Z"
+          "run": "redteam_2026-05-04_2114_b1bb7e3_complete-developer-2-phase-4-polish",
+          "commit": "b1bb7e39692a8e9c839f8617980c32d8a3414ced",
+          "at": "2026-05-04T21:16:06Z"
         },
         "resolved_in": null
       },
@@ -1361,6 +1361,153 @@
           "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
           "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
           "at": "2026-05-04T20:55:50Z"
+        },
+        "resolved_in": null
+      },
+      "2c3d2dc31158": {
+        "id": "2c3d2dc31158",
+        "category": "LOG_INJECTION",
+        "anchor": "askForHumanConfirmation",
+        "severity": "Medium",
+        "summary": "summary string (built from seller data) is written directly to terminal via rl.question, enabling terminal escape injection",
+        "exploit": "Seller crafts a proposal summary containing ANSI sequences (e.g., \\x1b[2J) to clear screen or spoof UI elements",
+        "fix": "Strip ANSI escape codes and control characters from summary before displaying to terminal",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2114_b1bb7e3_complete-developer-2-phase-4-polish",
+          "commit": "b1bb7e39692a8e9c839f8617980c32d8a3414ced",
+          "at": "2026-05-04T21:16:06Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2114_b1bb7e3_complete-developer-2-phase-4-polish",
+          "commit": "b1bb7e39692a8e9c839f8617980c32d8a3414ced",
+          "at": "2026-05-04T21:16:06Z"
+        },
+        "resolved_in": null
+      },
+      "11944b9ea7fd": {
+        "id": "11944b9ea7fd",
+        "category": "SILENT_FAILURE",
+        "anchor": "main",
+        "severity": "Medium",
+        "summary": "app.listen() result is not monitored for errors; port-bind failures are silently swallowed until the negotiation attempt fails",
+        "exploit": "Set PORT=80 (privileged); server silently fails to bind; buyer connects to nothing or a different service on that port",
+        "fix": "Attach an 'error' event listener on server and reject/throw so startup failure is surfaced immediately",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2114_b1bb7e3_complete-developer-2-phase-4-polish",
+          "commit": "b1bb7e39692a8e9c839f8617980c32d8a3414ced",
+          "at": "2026-05-04T21:16:06Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2114_b1bb7e3_complete-developer-2-phase-4-polish",
+          "commit": "b1bb7e39692a8e9c839f8617980c32d8a3414ced",
+          "at": "2026-05-04T21:16:06Z"
+        },
+        "resolved_in": null
+      },
+      "9d9225d16ad6": {
+        "id": "9d9225d16ad6",
+        "category": "DOS",
+        "anchor": "main",
+        "severity": "Medium",
+        "summary": "server.close() in finally block hangs indefinitely if the buyer agent holds an open keep-alive connection",
+        "exploit": "runBuyerNegotiation leaves an HTTP keep-alive socket open; server.close() never calls back; process hangs forever",
+        "fix": "Call server.closeAllConnections() (Node â‰¥18) before server.close(), or set a hard timeout that calls server.destroy()",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2114_b1bb7e3_complete-developer-2-phase-4-polish",
+          "commit": "b1bb7e39692a8e9c839f8617980c32d8a3414ced",
+          "at": "2026-05-04T21:16:06Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2114_b1bb7e3_complete-developer-2-phase-4-polish",
+          "commit": "b1bb7e39692a8e9c839f8617980c32d8a3414ced",
+          "at": "2026-05-04T21:16:06Z"
+        },
+        "resolved_in": null
+      },
+      "e10fdf486bd5": {
+        "id": "e10fdf486bd5",
+        "category": "REPLAY_ATTACK",
+        "anchor": "main",
+        "severity": "Medium",
+        "summary": "Mock public key and absence of real signature verification mean any recorded negotiation message can be replayed",
+        "exploit": "Capture a valid accepted-offer message and replay it to trigger re-settlement at the same price without fresh consent",
+        "fix": "Implement nonce/timestamp-based message signing verified against a real seller public key; reject replayed nonces",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2114_b1bb7e3_complete-developer-2-phase-4-polish",
+          "commit": "b1bb7e39692a8e9c839f8617980c32d8a3414ced",
+          "at": "2026-05-04T21:16:06Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2114_b1bb7e3_complete-developer-2-phase-4-polish",
+          "commit": "b1bb7e39692a8e9c839f8617980c32d8a3414ced",
+          "at": "2026-05-04T21:16:06Z"
+        },
+        "resolved_in": null
+      },
+      "bef8167ce153": {
+        "id": "bef8167ce153",
+        "category": "DOS",
+        "anchor": "askForHumanConfirmation",
+        "severity": "Low",
+        "summary": "readline.question has no timeout; process blocks indefinitely on stdin waiting for human confirmation",
+        "exploit": "Automated or headless environment where stdin is closed/empty causes the process to hang until killed externally",
+        "fix": "Race rl.question against a timeout Promise; reject and close the interface if no answer arrives within a reasonable deadline",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2114_b1bb7e3_complete-developer-2-phase-4-polish",
+          "commit": "b1bb7e39692a8e9c839f8617980c32d8a3414ced",
+          "at": "2026-05-04T21:16:06Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2114_b1bb7e3_complete-developer-2-phase-4-polish",
+          "commit": "b1bb7e39692a8e9c839f8617980c32d8a3414ced",
+          "at": "2026-05-04T21:16:06Z"
+        },
+        "resolved_in": null
+      },
+      "71a07d643898": {
+        "id": "71a07d643898",
+        "category": "NUMERIC_EDGE_CASE",
+        "anchor": "main",
+        "severity": "Low",
+        "summary": "BUYER_MAX_PRICE accepts arbitrarily large finite values (e.g., 1e308) with no upper bound check",
+        "exploit": "BUYER_MAX_PRICE=1e308 passes isFinite and >0 checks; downstream arithmetic may overflow or produce nonsensical offers",
+        "fix": "Add an upper-bound sanity check (e.g., maxPrice <= 1_000_000) appropriate to the currency denomination",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2114_b1bb7e3_complete-developer-2-phase-4-polish",
+          "commit": "b1bb7e39692a8e9c839f8617980c32d8a3414ced",
+          "at": "2026-05-04T21:16:06Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2114_b1bb7e3_complete-developer-2-phase-4-polish",
+          "commit": "b1bb7e39692a8e9c839f8617980c32d8a3414ced",
+          "at": "2026-05-04T21:16:06Z"
+        },
+        "resolved_in": null
+      },
+      "c6c93006f410": {
+        "id": "c6c93006f410",
+        "category": "INFO_DISCLOSURE",
+        "anchor": "main",
+        "severity": "Low",
+        "summary": "Seller's minimum (floor) price is logged to the shared console, visible to the buyer process and any log aggregator",
+        "exploit": "console.log discloses min_price=4.5; a buyer reading combined stdout learns the seller's true reservation price before negotiating",
+        "fix": "Keep seller-side policy details out of shared console output; log them only to a seller-specific log stream or omit floor price",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2114_b1bb7e3_complete-developer-2-phase-4-polish",
+          "commit": "b1bb7e39692a8e9c839f8617980c32d8a3414ced",
+          "at": "2026-05-04T21:16:06Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2114_b1bb7e3_complete-developer-2-phase-4-polish",
+          "commit": "b1bb7e39692a8e9c839f8617980c32d8a3414ced",
+          "at": "2026-05-04T21:16:06Z"
         },
         "resolved_in": null
       }
