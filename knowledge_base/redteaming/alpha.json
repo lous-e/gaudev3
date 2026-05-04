@@ -1,7 +1,7 @@
 {
   "_meta": {
-    "last_updated": "2026-05-04T20:55:50Z",
-    "open_count": 64,
+    "last_updated": "2026-05-04T20:59:25Z",
+    "open_count": 79,
     "resolved_count": 0
   },
   "issues": {
@@ -1361,6 +1361,323 @@
           "run": "redteam_2026-05-04_2048_abbf92d_manual-test",
           "commit": "abbf92d6552c4fe0acad8c976f6bc48f9b14ab9d",
           "at": "2026-05-04T20:55:50Z"
+        },
+        "resolved_in": null
+      }
+    },
+    "knowledge_base/redteaming/merge_findings.py": {
+      "2a761745a048": {
+        "id": "2a761745a048",
+        "category": "PATH_TRAVERSAL",
+        "anchor": "main",
+        "severity": "Critical",
+        "summary": "alpha_md_path derives from attacker-controlled CLI arg alpha_path; writing alpha.md to arbitrary filesystem locations",
+        "exploit": "python3 merge_findings.py findings.jsonl abc123 /var/www/html/../../etc/cron.d/alpha.json â€” alpha.md lands in /etc/cron.d/",
+        "fix": "Resolve and canonicalize alpha_path with os.path.realpath and assert it stays within an expected base directory before any file I/O",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2057_36c1d24_add-redteaming-infrastructure-alpha-inde",
+          "commit": "36c1d24e2beaeaaa4786bbd9cfe55d9ea6a3f942",
+          "at": "2026-05-04T20:59:25Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2057_36c1d24_add-redteaming-infrastructure-alpha-inde",
+          "commit": "36c1d24e2beaeaaa4786bbd9cfe55d9ea6a3f942",
+          "at": "2026-05-04T20:59:25Z"
+        },
+        "resolved_in": null
+      },
+      "d261add94fee": {
+        "id": "d261add94fee",
+        "category": "STATE_VIOLATION",
+        "anchor": "main",
+        "severity": "High",
+        "summary": "alpha.json is truncated by open(...,'w') before json.dump completes; a crash or KeyboardInterrupt between those two lines leaves a zero-byte or partial file",
+        "exploit": "Send SIGINT after the write fd is opened but before json.dump returns â€” alpha.json is now corrupt and all prior data is lost",
+        "fix": "Write to a temp file alongside alpha_path then os.replace() it atomically; catches all partial-write and signal scenarios",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2057_36c1d24_add-redteaming-infrastructure-alpha-inde",
+          "commit": "36c1d24e2beaeaaa4786bbd9cfe55d9ea6a3f942",
+          "at": "2026-05-04T20:59:25Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2057_36c1d24_add-redteaming-infrastructure-alpha-inde",
+          "commit": "36c1d24e2beaeaaa4786bbd9cfe55d9ea6a3f942",
+          "at": "2026-05-04T20:59:25Z"
+        },
+        "resolved_in": null
+      },
+      "590af4dee134": {
+        "id": "590af4dee134",
+        "category": "RACE_CONDITION",
+        "anchor": "main",
+        "severity": "High",
+        "summary": "Non-atomic read-modify-write of alpha.json; concurrent invocations cause lost-update; last writer silently wins",
+        "exploit": "Run two merge_findings.py processes in parallel on different JSONL files; one process's findings are silently dropped from the final alpha.json",
+        "fix": "Use an advisory lock (e.g. fcntl.flock or a .lock file) around the read-modify-write cycle, or use an atomic compare-and-swap via rename",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2057_36c1d24_add-redteaming-infrastructure-alpha-inde",
+          "commit": "36c1d24e2beaeaaa4786bbd9cfe55d9ea6a3f942",
+          "at": "2026-05-04T20:59:25Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2057_36c1d24_add-redteaming-infrastructure-alpha-inde",
+          "commit": "36c1d24e2beaeaaa4786bbd9cfe55d9ea6a3f942",
+          "at": "2026-05-04T20:59:25Z"
+        },
+        "resolved_in": null
+      },
+      "f1240402654a": {
+        "id": "f1240402654a",
+        "category": "INJECTION",
+        "anchor": "render_alpha_md",
+        "severity": "High",
+        "summary": "summary, exploit, fix, anchor, and category from untrusted JSONL are interpolated raw into Markdown table cells and section headers without escaping pipe chars or newlines",
+        "exploit": "Craft a finding with summary='foo | Critical | injected_anchor | **Critical** | surprise row' â€” renders an extra table row under arbitrary columns, spoofing severity and counts",
+        "fix": "Escape | as \\| and strip or replace newlines in all user-supplied string fields before inserting into Markdown table cells",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2057_36c1d24_add-redteaming-infrastructure-alpha-inde",
+          "commit": "36c1d24e2beaeaaa4786bbd9cfe55d9ea6a3f942",
+          "at": "2026-05-04T20:59:25Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2057_36c1d24_add-redteaming-infrastructure-alpha-inde",
+          "commit": "36c1d24e2beaeaaa4786bbd9cfe55d9ea6a3f942",
+          "at": "2026-05-04T20:59:25Z"
+        },
+        "resolved_in": null
+      },
+      "4718d6013a8b": {
+        "id": "4718d6013a8b",
+        "category": "PATH_TRAVERSAL",
+        "anchor": "normalize_path",
+        "severity": "High",
+        "summary": "lstrip('./') strips only *leading* dot and slash chars; embedded traversal like 'legit/../../etc/passwd' survives and is stored as a file_key in alpha.json",
+        "exploit": "Submit finding with file='legit/../../etc/passwd' â€” normalize_path returns 'legit/../../etc/passwd', stored verbatim as a key and rendered in alpha.md",
+        "fix": "Use posixpath.normpath after the replace and reject any key that still contains '..' segments",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2057_36c1d24_add-redteaming-infrastructure-alpha-inde",
+          "commit": "36c1d24e2beaeaaa4786bbd9cfe55d9ea6a3f942",
+          "at": "2026-05-04T20:59:25Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2057_36c1d24_add-redteaming-infrastructure-alpha-inde",
+          "commit": "36c1d24e2beaeaaa4786bbd9cfe55d9ea6a3f942",
+          "at": "2026-05-04T20:59:25Z"
+        },
+        "resolved_in": null
+      },
+      "bcec96e87796": {
+        "id": "bcec96e87796",
+        "category": "INFO_DISCLOSURE",
+        "anchor": "render_alpha_md",
+        "severity": "High",
+        "summary": "Working exploit payloads from every finding are written verbatim into the publicly committed alpha.md file",
+        "exploit": "Any user with read access to the repo (including CI logs) sees full exploit strings for every open vulnerability",
+        "fix": "Omit the exploit field from alpha.md or store it only in alpha.json which can be access-controlled; summarise with a redacted placeholder in the markdown",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2057_36c1d24_add-redteaming-infrastructure-alpha-inde",
+          "commit": "36c1d24e2beaeaaa4786bbd9cfe55d9ea6a3f942",
+          "at": "2026-05-04T20:59:25Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2057_36c1d24_add-redteaming-infrastructure-alpha-inde",
+          "commit": "36c1d24e2beaeaaa4786bbd9cfe55d9ea6a3f942",
+          "at": "2026-05-04T20:59:25Z"
+        },
+        "resolved_in": null
+      },
+      "f0912341ffe6": {
+        "id": "f0912341ffe6",
+        "category": "LOG_INJECTION",
+        "anchor": "main",
+        "severity": "Medium",
+        "summary": "findings_path (attacker-controlled CLI arg) is embedded unsanitized into a stderr log line, enabling ANSI escape injection or fake log-line injection",
+        "exploit": "Pass findings_path='run.jsonl\\n[merge] alpha.json updated (0 open)' â€” injects a false success log line into stderr",
+        "fix": "Sanitize findings_path before logging by replacing control characters, or log repr(findings_path) instead",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2057_36c1d24_add-redteaming-infrastructure-alpha-inde",
+          "commit": "36c1d24e2beaeaaa4786bbd9cfe55d9ea6a3f942",
+          "at": "2026-05-04T20:59:25Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2057_36c1d24_add-redteaming-infrastructure-alpha-inde",
+          "commit": "36c1d24e2beaeaaa4786bbd9cfe55d9ea6a3f942",
+          "at": "2026-05-04T20:59:25Z"
+        },
+        "resolved_in": null
+      },
+      "a2a0f61e89df": {
+        "id": "a2a0f61e89df",
+        "category": "SILENT_FAILURE",
+        "anchor": "parse_findings",
+        "severity": "Medium",
+        "summary": "json.JSONDecodeError on any JSONL line is silently swallowed with continue; malformed or deliberately corrupt input is dropped without any warning",
+        "exploit": "Inject one malformed JSON line in the middle of findings.jsonl â€” all subsequent valid lines still parse, but the malformed line (which could be a deliberate deletion of a critical finding) disappears silently",
+        "fix": "At minimum emit a stderr warning on each decode failure; optionally abort if the error rate exceeds a threshold",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2057_36c1d24_add-redteaming-infrastructure-alpha-inde",
+          "commit": "36c1d24e2beaeaaa4786bbd9cfe55d9ea6a3f942",
+          "at": "2026-05-04T20:59:25Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2057_36c1d24_add-redteaming-infrastructure-alpha-inde",
+          "commit": "36c1d24e2beaeaaa4786bbd9cfe55d9ea6a3f942",
+          "at": "2026-05-04T20:59:25Z"
+        },
+        "resolved_in": null
+      },
+      "538ab3088358": {
+        "id": "538ab3088358",
+        "category": "UNHANDLED_EXCEPTION",
+        "anchor": "main",
+        "severity": "Medium",
+        "summary": "json.load(alpha_path) and both open() calls are uncaught; FileNotFoundError, PermissionError, or JSONDecodeError crash the process with a raw traceback that leaks internal paths",
+        "exploit": "Pass a non-existent alpha.json path â€” unhandled FileNotFoundError exposes full filesystem path in traceback",
+        "fix": "Wrap all file I/O in explicit try/except blocks with actionable error messages; exit with a non-zero code",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2057_36c1d24_add-redteaming-infrastructure-alpha-inde",
+          "commit": "36c1d24e2beaeaaa4786bbd9cfe55d9ea6a3f942",
+          "at": "2026-05-04T20:59:25Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2057_36c1d24_add-redteaming-infrastructure-alpha-inde",
+          "commit": "36c1d24e2beaeaaa4786bbd9cfe55d9ea6a3f942",
+          "at": "2026-05-04T20:59:25Z"
+        },
+        "resolved_in": null
+      },
+      "dba87a4e5e2f": {
+        "id": "dba87a4e5e2f",
+        "category": "UNHANDLED_EXCEPTION",
+        "anchor": "render_alpha_md",
+        "severity": "Medium",
+        "summary": "v['first_seen']['commit'] and v['last_confirmed']['commit'] are accessed without guards; if alpha.json was hand-edited or corrupted, KeyError or TypeError crashes render",
+        "exploit": "Manually set first_seen to null in alpha.json, then run the script â€” render_alpha_md raises TypeError: 'NoneType' object is not subscriptable",
+        "fix": "Use safe dict.get() access with fallback empty strings for all nested fields from stored JSON",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2057_36c1d24_add-redteaming-infrastructure-alpha-inde",
+          "commit": "36c1d24e2beaeaaa4786bbd9cfe55d9ea6a3f942",
+          "at": "2026-05-04T20:59:25Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2057_36c1d24_add-redteaming-infrastructure-alpha-inde",
+          "commit": "36c1d24e2beaeaaa4786bbd9cfe55d9ea6a3f942",
+          "at": "2026-05-04T20:59:25Z"
+        },
+        "resolved_in": null
+      },
+      "c7cc09cbbc50": {
+        "id": "c7cc09cbbc50",
+        "category": "BUSINESS_LOGIC",
+        "anchor": "merge",
+        "severity": "Medium",
+        "summary": "Any finding with an unrecognised category is silently reclassified as INPUT_VALIDATION instead of being rejected, polluting that category with misclassified issues",
+        "exploit": "Submit finding with category='MAGIC_ZERO_DAY' â€” stored as INPUT_VALIDATION, obscuring actual input-validation issues and distorting severity triage",
+        "fix": "Reject findings with invalid categories outright (log a warning and skip) rather than silently remapping them",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2057_36c1d24_add-redteaming-infrastructure-alpha-inde",
+          "commit": "36c1d24e2beaeaaa4786bbd9cfe55d9ea6a3f942",
+          "at": "2026-05-04T20:59:25Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2057_36c1d24_add-redteaming-infrastructure-alpha-inde",
+          "commit": "36c1d24e2beaeaaa4786bbd9cfe55d9ea6a3f942",
+          "at": "2026-05-04T20:59:25Z"
+        },
+        "resolved_in": null
+      },
+      "860c8bb11e6e": {
+        "id": "860c8bb11e6e",
+        "category": "INPUT_VALIDATION",
+        "anchor": "merge",
+        "severity": "Medium",
+        "summary": "severity field is stored from untrusted JSONL without validation against SEVERITY_ORDER; arbitrary strings are persisted and rendered in bold in Markdown",
+        "exploit": "Submit finding with severity='**CRITICAL** </table><script>alert(1)</script>' â€” stored verbatim, rendered as bold HTML in any Markdown renderer that passes through HTML",
+        "fix": "Validate severity against SEVERITY_ORDER whitelist and default to 'Low' on mismatch, matching the same pattern used for category",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2057_36c1d24_add-redteaming-infrastructure-alpha-inde",
+          "commit": "36c1d24e2beaeaaa4786bbd9cfe55d9ea6a3f942",
+          "at": "2026-05-04T20:59:25Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2057_36c1d24_add-redteaming-infrastructure-alpha-inde",
+          "commit": "36c1d24e2beaeaaa4786bbd9cfe55d9ea6a3f942",
+          "at": "2026-05-04T20:59:25Z"
+        },
+        "resolved_in": null
+      },
+      "c1be081ffe6c": {
+        "id": "c1be081ffe6c",
+        "category": "DOS",
+        "anchor": "parse_findings",
+        "severity": "Medium",
+        "summary": "parse_findings reads the entire JSONL file into memory with no size limit; a multi-GB file causes OOM",
+        "exploit": "Pass a 4 GB findings.jsonl â€” process OOMs and may kill the CI runner or adjacent processes",
+        "fix": "Add a line-count or byte-size limit (e.g. reject files over 10 MB) before iterating, or stream and impose a per-run finding cap",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2057_36c1d24_add-redteaming-infrastructure-alpha-inde",
+          "commit": "36c1d24e2beaeaaa4786bbd9cfe55d9ea6a3f942",
+          "at": "2026-05-04T20:59:25Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2057_36c1d24_add-redteaming-infrastructure-alpha-inde",
+          "commit": "36c1d24e2beaeaaa4786bbd9cfe55d9ea6a3f942",
+          "at": "2026-05-04T20:59:25Z"
+        },
+        "resolved_in": null
+      },
+      "2681025d5fda": {
+        "id": "2681025d5fda",
+        "category": "BUSINESS_LOGIC",
+        "anchor": "vuln_id",
+        "severity": "Medium",
+        "summary": "ID collision: sha256(file|category|anchor)[:12] can be pre-computed; an attacker controlling the JSONL can craft a finding that matches an existing vid and silently updates its last_confirmed timestamp without adding a new record",
+        "exploit": "Compute vid for a known high-severity issue; emit a finding with identical file/category/anchor â€” the existing entry is confirmed-fresh, masking any staleness signal used to auto-resolve it",
+        "fix": "Include a nonce or run_id in the hash so repeated confirmation requires possessing the original run context; or use a monotonically increasing ID and treat deduplication as a separate query",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2057_36c1d24_add-redteaming-infrastructure-alpha-inde",
+          "commit": "36c1d24e2beaeaaa4786bbd9cfe55d9ea6a3f942",
+          "at": "2026-05-04T20:59:25Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2057_36c1d24_add-redteaming-infrastructure-alpha-inde",
+          "commit": "36c1d24e2beaeaaa4786bbd9cfe55d9ea6a3f942",
+          "at": "2026-05-04T20:59:25Z"
+        },
+        "resolved_in": null
+      },
+      "3aa75b813f4c": {
+        "id": "3aa75b813f4c",
+        "category": "INPUT_VALIDATION",
+        "anchor": "main",
+        "severity": "Low",
+        "summary": "commit_sha is accepted as a raw CLI string with no length or character validation; stored in JSON and sliced to 7 chars in Markdown without sanitisation",
+        "exploit": "Pass commit_sha='../../../../evil' â€” stored verbatim in first_seen/last_confirmed; the [:7] slice produces '../../..' which renders as a relative link in some Markdown renderers",
+        "fix": "Validate commit_sha matches /^[0-9a-f]{7,40}$/ before using it; reject and exit on mismatch",
+        "resolved": false,
+        "first_seen": {
+          "run": "redteam_2026-05-04_2057_36c1d24_add-redteaming-infrastructure-alpha-inde",
+          "commit": "36c1d24e2beaeaaa4786bbd9cfe55d9ea6a3f942",
+          "at": "2026-05-04T20:59:25Z"
+        },
+        "last_confirmed": {
+          "run": "redteam_2026-05-04_2057_36c1d24_add-redteaming-infrastructure-alpha-inde",
+          "commit": "36c1d24e2beaeaaa4786bbd9cfe55d9ea6a3f942",
+          "at": "2026-05-04T20:59:25Z"
         },
         "resolved_in": null
       }

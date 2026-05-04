@@ -1,11 +1,121 @@
 # BidMesh — Open Security Issues (Alpha)
 
-**Last updated:** 2026-05-04T20:55:50Z  |  **Open:** 64  |  **Resolved:** 0
+**Last updated:** 2026-05-04T20:59:25Z  |  **Open:** 79  |  **Resolved:** 0
 
 > This file is auto-generated. Mark an issue resolved by setting `"resolved": true`
 > and `"resolved_in": "<commit_sha>"` in `alpha.json`, then re-run the hook.
 
 ---
+
+## `knowledge_base/redteaming/merge_findings.py`  (15 open)
+
+| ID | Category | Anchor | Severity | Summary | First Seen | Last Confirmed |
+|----|----------|--------|----------|---------|------------|----------------|
+| `2a761745a048` | PATH_TRAVERSAL | `main` | **Critical** | alpha_md_path derives from attacker-controlled CLI arg alpha_path; writing alpha.md to arbitrary filesystem locations | 36c1d24 | 36c1d24 |
+| `d261add94fee` | STATE_VIOLATION | `main` | **High** | alpha.json is truncated by open(...,'w') before json.dump completes; a crash or KeyboardInterrupt between those two lines leaves a zero-byte or partial file | 36c1d24 | 36c1d24 |
+| `590af4dee134` | RACE_CONDITION | `main` | **High** | Non-atomic read-modify-write of alpha.json; concurrent invocations cause lost-update; last writer silently wins | 36c1d24 | 36c1d24 |
+| `f1240402654a` | INJECTION | `render_alpha_md` | **High** | summary, exploit, fix, anchor, and category from untrusted JSONL are interpolated raw into Markdown table cells and section headers without escaping pipe chars or newlines | 36c1d24 | 36c1d24 |
+| `4718d6013a8b` | PATH_TRAVERSAL | `normalize_path` | **High** | lstrip('./') strips only *leading* dot and slash chars; embedded traversal like 'legit/../../etc/passwd' survives and is stored as a file_key in alpha.json | 36c1d24 | 36c1d24 |
+| `bcec96e87796` | INFO_DISCLOSURE | `render_alpha_md` | **High** | Working exploit payloads from every finding are written verbatim into the publicly committed alpha.md file | 36c1d24 | 36c1d24 |
+| `f0912341ffe6` | LOG_INJECTION | `main` | **Medium** | findings_path (attacker-controlled CLI arg) is embedded unsanitized into a stderr log line, enabling ANSI escape injection or fake log-line injection | 36c1d24 | 36c1d24 |
+| `a2a0f61e89df` | SILENT_FAILURE | `parse_findings` | **Medium** | json.JSONDecodeError on any JSONL line is silently swallowed with continue; malformed or deliberately corrupt input is dropped without any warning | 36c1d24 | 36c1d24 |
+| `538ab3088358` | UNHANDLED_EXCEPTION | `main` | **Medium** | json.load(alpha_path) and both open() calls are uncaught; FileNotFoundError, PermissionError, or JSONDecodeError crash the process with a raw traceback that leaks internal paths | 36c1d24 | 36c1d24 |
+| `dba87a4e5e2f` | UNHANDLED_EXCEPTION | `render_alpha_md` | **Medium** | v['first_seen']['commit'] and v['last_confirmed']['commit'] are accessed without guards; if alpha.json was hand-edited or corrupted, KeyError or TypeError crashes render | 36c1d24 | 36c1d24 |
+| `c7cc09cbbc50` | BUSINESS_LOGIC | `merge` | **Medium** | Any finding with an unrecognised category is silently reclassified as INPUT_VALIDATION instead of being rejected, polluting that category with misclassified issues | 36c1d24 | 36c1d24 |
+| `860c8bb11e6e` | INPUT_VALIDATION | `merge` | **Medium** | severity field is stored from untrusted JSONL without validation against SEVERITY_ORDER; arbitrary strings are persisted and rendered in bold in Markdown | 36c1d24 | 36c1d24 |
+| `c1be081ffe6c` | DOS | `parse_findings` | **Medium** | parse_findings reads the entire JSONL file into memory with no size limit; a multi-GB file causes OOM | 36c1d24 | 36c1d24 |
+| `2681025d5fda` | BUSINESS_LOGIC | `vuln_id` | **Medium** | ID collision: sha256(file|category|anchor)[:12] can be pre-computed; an attacker controlling the JSONL can craft a finding that matches an existing vid and silently updates its last_confirmed timestamp without adding a new record | 36c1d24 | 36c1d24 |
+| `3aa75b813f4c` | INPUT_VALIDATION | `main` | **Low** | commit_sha is accepted as a raw CLI string with no length or character validation; stored in JSON and sliced to 7 chars in Markdown without sanitisation | 36c1d24 | 36c1d24 |
+
+### `2a761745a048` — alpha_md_path derives from attacker-controlled CLI arg alpha_path; writing alpha.md to arbitrary filesystem locations
+
+**Exploit:** python3 merge_findings.py findings.jsonl abc123 /var/www/html/../../etc/cron.d/alpha.json â€” alpha.md lands in /etc/cron.d/
+
+**Fix:** Resolve and canonicalize alpha_path with os.path.realpath and assert it stays within an expected base directory before any file I/O
+
+### `d261add94fee` — alpha.json is truncated by open(...,'w') before json.dump completes; a crash or KeyboardInterrupt between those two lines leaves a zero-byte or partial file
+
+**Exploit:** Send SIGINT after the write fd is opened but before json.dump returns â€” alpha.json is now corrupt and all prior data is lost
+
+**Fix:** Write to a temp file alongside alpha_path then os.replace() it atomically; catches all partial-write and signal scenarios
+
+### `590af4dee134` — Non-atomic read-modify-write of alpha.json; concurrent invocations cause lost-update; last writer silently wins
+
+**Exploit:** Run two merge_findings.py processes in parallel on different JSONL files; one process's findings are silently dropped from the final alpha.json
+
+**Fix:** Use an advisory lock (e.g. fcntl.flock or a .lock file) around the read-modify-write cycle, or use an atomic compare-and-swap via rename
+
+### `f1240402654a` — summary, exploit, fix, anchor, and category from untrusted JSONL are interpolated raw into Markdown table cells and section headers without escaping pipe chars or newlines
+
+**Exploit:** Craft a finding with summary='foo | Critical | injected_anchor | **Critical** | surprise row' â€” renders an extra table row under arbitrary columns, spoofing severity and counts
+
+**Fix:** Escape | as \| and strip or replace newlines in all user-supplied string fields before inserting into Markdown table cells
+
+### `4718d6013a8b` — lstrip('./') strips only *leading* dot and slash chars; embedded traversal like 'legit/../../etc/passwd' survives and is stored as a file_key in alpha.json
+
+**Exploit:** Submit finding with file='legit/../../etc/passwd' â€” normalize_path returns 'legit/../../etc/passwd', stored verbatim as a key and rendered in alpha.md
+
+**Fix:** Use posixpath.normpath after the replace and reject any key that still contains '..' segments
+
+### `bcec96e87796` — Working exploit payloads from every finding are written verbatim into the publicly committed alpha.md file
+
+**Exploit:** Any user with read access to the repo (including CI logs) sees full exploit strings for every open vulnerability
+
+**Fix:** Omit the exploit field from alpha.md or store it only in alpha.json which can be access-controlled; summarise with a redacted placeholder in the markdown
+
+### `f0912341ffe6` — findings_path (attacker-controlled CLI arg) is embedded unsanitized into a stderr log line, enabling ANSI escape injection or fake log-line injection
+
+**Exploit:** Pass findings_path='run.jsonl\n[merge] alpha.json updated (0 open)' â€” injects a false success log line into stderr
+
+**Fix:** Sanitize findings_path before logging by replacing control characters, or log repr(findings_path) instead
+
+### `a2a0f61e89df` — json.JSONDecodeError on any JSONL line is silently swallowed with continue; malformed or deliberately corrupt input is dropped without any warning
+
+**Exploit:** Inject one malformed JSON line in the middle of findings.jsonl â€” all subsequent valid lines still parse, but the malformed line (which could be a deliberate deletion of a critical finding) disappears silently
+
+**Fix:** At minimum emit a stderr warning on each decode failure; optionally abort if the error rate exceeds a threshold
+
+### `538ab3088358` — json.load(alpha_path) and both open() calls are uncaught; FileNotFoundError, PermissionError, or JSONDecodeError crash the process with a raw traceback that leaks internal paths
+
+**Exploit:** Pass a non-existent alpha.json path â€” unhandled FileNotFoundError exposes full filesystem path in traceback
+
+**Fix:** Wrap all file I/O in explicit try/except blocks with actionable error messages; exit with a non-zero code
+
+### `dba87a4e5e2f` — v['first_seen']['commit'] and v['last_confirmed']['commit'] are accessed without guards; if alpha.json was hand-edited or corrupted, KeyError or TypeError crashes render
+
+**Exploit:** Manually set first_seen to null in alpha.json, then run the script â€” render_alpha_md raises TypeError: 'NoneType' object is not subscriptable
+
+**Fix:** Use safe dict.get() access with fallback empty strings for all nested fields from stored JSON
+
+### `c7cc09cbbc50` — Any finding with an unrecognised category is silently reclassified as INPUT_VALIDATION instead of being rejected, polluting that category with misclassified issues
+
+**Exploit:** Submit finding with category='MAGIC_ZERO_DAY' â€” stored as INPUT_VALIDATION, obscuring actual input-validation issues and distorting severity triage
+
+**Fix:** Reject findings with invalid categories outright (log a warning and skip) rather than silently remapping them
+
+### `860c8bb11e6e` — severity field is stored from untrusted JSONL without validation against SEVERITY_ORDER; arbitrary strings are persisted and rendered in bold in Markdown
+
+**Exploit:** Submit finding with severity='**CRITICAL** </table><script>alert(1)</script>' â€” stored verbatim, rendered as bold HTML in any Markdown renderer that passes through HTML
+
+**Fix:** Validate severity against SEVERITY_ORDER whitelist and default to 'Low' on mismatch, matching the same pattern used for category
+
+### `c1be081ffe6c` — parse_findings reads the entire JSONL file into memory with no size limit; a multi-GB file causes OOM
+
+**Exploit:** Pass a 4 GB findings.jsonl â€” process OOMs and may kill the CI runner or adjacent processes
+
+**Fix:** Add a line-count or byte-size limit (e.g. reject files over 10 MB) before iterating, or stream and impose a per-run finding cap
+
+### `2681025d5fda` — ID collision: sha256(file|category|anchor)[:12] can be pre-computed; an attacker controlling the JSONL can craft a finding that matches an existing vid and silently updates its last_confirmed timestamp without adding a new record
+
+**Exploit:** Compute vid for a known high-severity issue; emit a finding with identical file/category/anchor â€” the existing entry is confirmed-fresh, masking any staleness signal used to auto-resolve it
+
+**Fix:** Include a nonce or run_id in the hash so repeated confirmation requires possessing the original run context; or use a monotonically increasing ID and treat deduplication as a separate query
+
+### `3aa75b813f4c` — commit_sha is accepted as a raw CLI string with no length or character validation; stored in JSON and sliced to 7 chars in Markdown without sanitisation
+
+**Exploit:** Pass commit_sha='../../../../evil' â€” stored verbatim in first_seen/last_confirmed; the [:7] slice produces '../../..' which renders as a relative link in some Markdown renderers
+
+**Fix:** Validate commit_sha matches /^[0-9a-f]{7,40}$/ before using it; reject and exit on mismatch
 
 ## `src/audit.ts`  (3 open)
 
