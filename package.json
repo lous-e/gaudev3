@@ -5,6 +5,7 @@
     "build": "tsc",
     "test": "vitest run",
     "demo": "npx ts-node src/demo.ts",
+    "demo:backend": "ts-node src/demo-backend/server.ts",
     "setup:redteam-hook": "git config core.hooksPath .githooks"
   },
   "dependencies": {
