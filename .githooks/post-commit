@@ -1,0 +1,146 @@
+#!/usr/bin/env bash
+# Red-team hook: fires after every commit.
+# For every source file touched in the commit, does a full-file re-scan.
+# Writes a dated run report to knowledge_base/redteaming/runs/ and merges into alpha.
+
+set -euo pipefail
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+REDTEAM_DIR="$REPO_ROOT/knowledge_base/redteaming"
+RUNS_DIR="$REDTEAM_DIR/runs"
+ALPHA_JSON="$REDTEAM_DIR/alpha.json"
+MERGE_SCRIPT="$REDTEAM_DIR/merge_findings.py"
+PYTHON="${PYTHON:-python3}"
+
+if ! command -v "$PYTHON" >/dev/null 2>&1; then
+  if command -v python >/dev/null 2>&1; then
+    PYTHON="python"
+  else
+    echo "[redteam] Python not found; skipping."
+    exit 0
+  fi
+fi
+
+if ! command -v claude >/dev/null 2>&1; then
+  echo "[redteam] Claude CLI not found; skipping."
+  exit 0
+fi
+
+COMMIT_SHA="$(git rev-parse HEAD)"
+COMMIT_SHA_SHORT="$(git rev-parse --short HEAD)"
+COMMIT_MSG="$(git log -1 --format='%s' | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g' | sed 's/--*/-/g' | cut -c1-40)"
+TIMESTAMP="$(date -u +%Y-%m-%d_%H%M)"
+RUN_ID="${TIMESTAMP}_${COMMIT_SHA_SHORT}_${COMMIT_MSG}"
+TMP_DIR="${TMPDIR:-/tmp}"
+RUN_FINDINGS="$TMP_DIR/redteam_${RUN_ID}.jsonl"
+RUN_REPORT="$RUNS_DIR/${RUN_ID}.md"
+
+mkdir -p "$RUNS_DIR"
+
+mapfile -t CHANGED_FILES < <(
+  git diff HEAD~1 HEAD --name-only 2>/dev/null \
+  | grep -E '\.(ts|js|py|rs|go|sh)$' \
+  | grep -v '^knowledge_base/' \
+  | while read -r f; do [ -f "$REPO_ROOT/$f" ] && echo "$f"; done
+) || true
+
+if [ ${#CHANGED_FILES[@]} -eq 0 ]; then
+  mapfile -t CHANGED_FILES < <(
+    git diff-tree --no-commit-id -r --name-only HEAD \
+    | grep -E '\.(ts|js|py|rs|go|sh)$' \
+    | grep -v '^knowledge_base/' \
+    | while read -r f; do [ -f "$REPO_ROOT/$f" ] && echo "$f"; done
+  ) || true
+fi
+
+if [ ${#CHANGED_FILES[@]} -eq 0 ]; then
+  echo "[redteam] No scannable files changed - skipping."
+  exit 0
+fi
+
+echo "[redteam] Commit ${COMMIT_SHA_SHORT}: scanning ${#CHANGED_FILES[@]} file(s)..."
+
+CATEGORIES="INPUT_VALIDATION, AUTHENTICATION, AUTHORIZATION, INJECTION, PATH_TRAVERSAL,
+LOG_INJECTION, RACE_CONDITION, STATE_VIOLATION, REPLAY_ATTACK, PARTIAL_FAILURE,
+UNHANDLED_EXCEPTION, SILENT_FAILURE, SUPPLY_CHAIN, BUSINESS_LOGIC, NUMERIC_EDGE_CASE,
+SSRF, INFO_DISCLOSURE, DOS"
+
+{
+  echo "# Red-Team Run: ${RUN_ID}"
+  echo ""
+  echo "**Commit:** \`${COMMIT_SHA}\`"
+  echo "**Message:** $(git log -1 --format='%s')"
+  echo "**Date:** $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  echo "**Files scanned:** ${#CHANGED_FILES[@]}"
+  echo ""
+  echo "---"
+  echo ""
+} > "$RUN_REPORT"
+
+> "$RUN_FINDINGS"
+
+for REL_PATH in "${CHANGED_FILES[@]}"; do
+  ABS_PATH="$REPO_ROOT/$REL_PATH"
+  echo "[redteam]   scanning $REL_PATH ..."
+
+  FILE_CONTENT="$(cat "$ABS_PATH")"
+
+  PROMPT="You are an expert security researcher doing an exhaustive adversarial review.
+
+Analyze the ENTIRE file below for vulnerabilities across:
+input validation, authentication, authorization, injection, path traversal,
+log injection, race conditions, state violations, replay attacks, partial failure,
+unhandled exceptions, silent failures, supply chain, business logic, numeric edge cases,
+SSRF, information disclosure, and DoS.
+
+OUTPUT FORMAT - one JSON object per line, no other text, no markdown fences:
+{\"file\":\"${REL_PATH}\",\"category\":\"<CATEGORY>\",\"anchor\":\"<function_or_block_name>\",\"severity\":\"<Critical|High|Medium|Low>\",\"summary\":\"<one line>\",\"exploit\":\"<exact input or sequence>\",\"fix\":\"<one line mitigation>\"}
+
+The category field MUST be exactly one of: ${CATEGORIES}
+The anchor field MUST be the function or named block where the issue lives (use \"module\" if top-level).
+If the file has no vulnerabilities, emit exactly one line:
+{\"file\":\"${REL_PATH}\",\"category\":\"INPUT_VALIDATION\",\"anchor\":\"module\",\"severity\":\"Info\",\"summary\":\"No vulnerabilities found\",\"exploit\":\"-\",\"fix\":\"-\"}
+
+--- FILE: ${REL_PATH} ---
+${FILE_CONTENT}
+--- END FILE ---"
+
+  FILE_FINDINGS="$(claude --print "$PROMPT" 2>/dev/null || true)"
+
+  {
+    echo "## \`${REL_PATH}\`"
+    echo ""
+    echo '```json'
+    echo "$FILE_FINDINGS"
+    echo '```'
+    echo ""
+  } >> "$RUN_REPORT"
+
+  echo "$FILE_FINDINGS" | while IFS= read -r line; do
+    line="${line//\`\`\`json/}"
+    line="${line//\`\`\`/}"
+    line="$(echo "$line" | sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//')"
+    if [[ "$line" == "{"* ]] && [[ "$line" == *"}" ]]; then
+      echo "$line" >> "$RUN_FINDINGS"
+    fi
+  done
+done
+
+FINDING_COUNT="$(wc -l < "$RUN_FINDINGS" | tr -d ' ')"
+echo "[redteam] Merging ${FINDING_COUNT} finding(s) into alpha..."
+
+"$PYTHON" "$MERGE_SCRIPT" "$RUN_FINDINGS" "$COMMIT_SHA" "$ALPHA_JSON"
+
+OPEN_COUNT="$("$PYTHON" -c "import json; d=json.load(open('$ALPHA_JSON', encoding='utf-8')); print(d['_meta']['open_count'])")"
+{
+  echo "---"
+  echo ""
+  echo "**Findings this run:** ${FINDING_COUNT}"
+  echo "**Total open issues (alpha):** ${OPEN_COUNT}"
+} >> "$RUN_REPORT"
+
+echo "[redteam] Done."
+echo "[redteam]   Run report : knowledge_base/redteaming/runs/${RUN_ID}.md"
+echo "[redteam]   Alpha      : knowledge_base/redteaming/alpha.md (${OPEN_COUNT} open)"
+
+rm -f "$RUN_FINDINGS"
