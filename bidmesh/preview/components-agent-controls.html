@@ -1,0 +1,31 @@
+<!doctype html>
+<html><head><meta charset="utf-8"/>
+<title>Buttons — agent</title>
+<link rel="stylesheet" href="../colors_and_type.css"/>
+<style>body{margin:0;padding:24px;background:var(--a-bg);color:var(--a-fg);font-family:var(--font-mono);font-size:11px}
+.row{display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap}
+.h{font-size:10.5px;letter-spacing:0.08em;text-transform:uppercase;color:var(--a-green);font-weight:600;margin:0 0 8px;font-family:var(--font-sans)}
+.btn{padding:5px 12px;border-radius:3px;font-size:11px;cursor:pointer;font-family:inherit;border:1px solid var(--a-border);background:transparent}
+.cta{background:var(--a-green);color:var(--a-bg);border:none;padding:8px 12px;font-weight:600}
+.green{color:var(--a-green)}
+.blue{color:var(--a-blue);border-color:var(--a-border-blue);background:rgba(110,168,254,0.04)}
+.dim{color:var(--a-fg-2)}
+.pill{display:inline-flex;padding:1px 6px;border-radius:2px;font-size:10px;text-transform:uppercase;letter-spacing:0.05em;font-weight:500}
+</style></head><body>
+<div class="h">// terminal buttons</div>
+<div class="row">
+<button class="btn green">↻ replay</button>
+<button class="btn green">▶ play</button>
+<button class="btn blue">▸ inspect schema</button>
+<button class="btn dim">▸ pin to allowlist</button>
+<button class="cta">▸ bidmesh.negotiate.open</button>
+</div>
+<div class="h">// inline pills</div>
+<div class="row">
+<span class="pill" style="background:rgba(125,227,154,0.10);color:var(--a-green)">● live</span>
+<span class="pill" style="background:rgba(110,168,254,0.10);color:var(--a-blue)">nuff/v1</span>
+<span class="pill" style="background:rgba(241,196,107,0.10);color:var(--a-amber)">cap=5.00</span>
+<span class="pill" style="background:rgba(255,107,107,0.12);color:var(--a-red)">blocked</span>
+<span class="pill" style="background:rgba(199,201,204,0.08);color:var(--a-fg-2)">walked</span>
+</div>
+</body></html>

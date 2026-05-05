@@ -1,0 +1,27 @@
+<!doctype html>
+<html><head><meta charset="utf-8"/>
+<title>RPC event</title>
+<link rel="stylesheet" href="../colors_and_type.css"/>
+<style>body{margin:0;padding:18px;background:var(--a-bg);color:var(--a-fg);font-family:var(--font-mono);font-size:11px;line-height:1.55}
+.event{margin-bottom:10px}
+.dim{color:var(--a-fg-5)}
+.method{color:var(--a-blue)}
+.green{color:var(--a-green)}
+.red{color:var(--a-red)}
+.amber{color:var(--a-amber)}
+.pill{display:inline-flex;padding:1px 6px;border-radius:2px;font-size:10px;text-transform:uppercase;letter-spacing:0.05em;font-weight:500}
+pre{margin:4px 0 0 16px;padding:6px 8px;background:var(--a-bg-3);border:1px solid var(--a-border);border-radius:2px;color:var(--a-fg-2);font-size:10.5px;line-height:1.5}
+</style></head><body>
+<div class="event"><span class="dim"><span class="green">→</span> <span class="method">bidmesh.negotiate.open</span> <span class="pill" style="background:rgba(199,201,204,0.08);color:var(--a-fg-2)">open</span></span><pre>{
+  "from": "0x4a3f…c0de",
+  "body": {"price": 4.00, "currency": "USDC", "round": 1}
+}</pre></div>
+<div class="event"><span class="dim"><span class="amber">←</span> <span class="method">bidmesh.negotiate.counter</span> <span class="pill" style="background:rgba(199,201,204,0.08);color:var(--a-fg-2)">counter</span></span><pre>{
+  "from": "0x9b21…7c8a",
+  "body": {"price": 5.50, "currency": "USDC", "round": 1}
+}</pre></div>
+<div class="event"><span class="dim"><span class="red">·</span> <span class="method">validation.shim.buyer</span> <span class="pill" style="background:rgba(255,107,107,0.12);color:var(--a-red)">block</span></span><pre style="border-color:rgba(255,107,107,0.4);background:rgba(255,107,107,0.04)">{
+  "from": "0x4a3f…c0de",
+  "body": {"price": 7.00, "reason_code": "accepted_price_exceeds_max_price"}
+}</pre></div>
+</body></html>

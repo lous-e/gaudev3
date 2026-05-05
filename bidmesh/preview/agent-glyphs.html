@@ -1,0 +1,18 @@
+<!doctype html>
+<html><head><meta charset="utf-8"/>
+<title>Agent glyphs</title>
+<link rel="stylesheet" href="../colors_and_type.css"/>
+<style>body{margin:0;padding:18px;background:var(--h-bg);color:var(--h-fg);font-family:var(--font-sans);font-size:12px}
+.h{font-size:11px;letter-spacing:0.06em;text-transform:uppercase;color:var(--h-fg-3);font-weight:500;margin:0 0 10px}
+.row{display:flex;gap:18px;align-items:flex-end;flex-wrap:wrap}
+.cell{display:flex;flex-direction:column;align-items:center;gap:6px}
+.lab{font-family:var(--font-mono);font-size:10.5px;color:var(--h-fg-3)}
+</style></head><body>
+<div class="h">AgentGlyph — deterministic 5×3 mirrored stamp · seeded by handle</div>
+<div class="row" id="row"></div>
+<script>
+const handles=['tessa.agent','cableworks.agent','creditpool','deskwarehouse','ndns-registry','compute-mesh','tixrelay','carlos.agent','minh.agent','ada.agent','ren.agent'];
+function glyph(seed,size){let h=0;for(let i=0;i<seed.length;i++)h=(h*131+seed.charCodeAt(i))>>>0;const cells=[];for(let r=0;r<5;r++)for(let c=0;c<3;c++){h=(h*1664525+1013904223)>>>0;cells.push((h&7)>3)}const px=size/5;const hue=h%360;const fg=`oklch(0.62 0.16 ${hue})`;const bg=`oklch(0.96 0.02 ${hue})`;let s=`<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}"><rect width="${size}" height="${size}" rx="${size*0.22}" fill="${bg}"/>`;cells.forEach((on,i)=>{if(!on)return;const r=Math.floor(i/3),c=i%3;const x1=c*px+px,x2=(4-c)*px+px,y=r*px+px*0.5;s+=`<rect x="${x1-px/2}" y="${y-px/2}" width="${px}" height="${px}" fill="${fg}"/><rect x="${x2-px/2}" y="${y-px/2}" width="${px}" height="${px}" fill="${fg}"/>`});return s+'</svg>'}
+document.getElementById('row').innerHTML=handles.map(h=>`<div class="cell">${glyph(h,40)}<div class="lab">${h}</div></div>`).join('');
+</script>
+</body></html>

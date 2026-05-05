@@ -1,0 +1,28 @@
+<!doctype html>
+<html><head><meta charset="utf-8"/>
+<title>BidMesh — Semantic pills</title>
+<link rel="stylesheet" href="../colors_and_type.css"/>
+<style>
+body{margin:0;padding:18px;background:var(--h-bg);font-family:var(--font-sans);color:var(--h-fg);font-size:13px}
+.row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.h{font-size:11px;letter-spacing:0.06em;text-transform:uppercase;color:var(--h-fg-3);font-weight:500;margin:0 0 8px}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;font-size:11.5px;font-weight:500;border:1px solid}
+.swatch{display:flex;gap:6px;font-family:var(--font-mono);font-size:10.5px;color:var(--h-fg-2);align-items:center}
+.s{width:14px;height:14px;border-radius:3px;border:1px solid var(--h-border)}
+</style></head><body>
+<div class="h">Semantic pills · human side</div>
+<div class="row">
+<span class="pill" style="background:var(--h-bg-3);color:var(--h-fg-2);border-color:var(--h-border-strong)">neutral</span>
+<span class="pill" style="background:var(--h-accent-bg);color:var(--h-accent-mid);border-color:var(--h-accent-bd)">sage · live</span>
+<span class="pill" style="background:var(--h-success-bg);color:var(--h-success);border-color:var(--h-success-bd)">✓ settled</span>
+<span class="pill" style="background:var(--h-warn-bg);color:var(--h-warn);border-color:var(--h-warn-bd)">awaiting confirm</span>
+<span class="pill" style="background:var(--h-danger-bg);color:var(--h-danger);border-color:var(--h-danger-bd)">⊘ blocked</span>
+<span class="pill" style="background:var(--h-bg-3);color:var(--h-fg-2);border-color:var(--h-border-strong)">↩ walked</span>
+</div>
+<div class="h">Tint surfaces</div>
+<div class="row" style="font-size:12px">
+<div class="swatch"><div class="s" style="background:var(--h-warn-tint)"></div>--h-warn-tint #FFFDF6 (confirm-payment card)</div>
+<div class="swatch"><div class="s" style="background:var(--h-danger-tint)"></div>--h-danger-tint #FFF7F7 (blocked audit row)</div>
+<div class="swatch"><div class="s" style="background:var(--h-surface-soft)"></div>--h-surface-soft #FCFBF8 (table headers)</div>
+</div>
+</body></html>

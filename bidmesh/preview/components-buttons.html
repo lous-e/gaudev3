@@ -1,0 +1,29 @@
+<!doctype html>
+<html><head><meta charset="utf-8"/>
+<title>Buttons — human</title>
+<link rel="stylesheet" href="../colors_and_type.css"/>
+<style>body{margin:0;padding:24px;background:var(--h-bg);color:var(--h-fg);font-family:var(--font-sans);font-size:13px}
+.row{display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap}
+.h{font-size:11px;letter-spacing:0.06em;text-transform:uppercase;color:var(--h-fg-3);font-weight:500;margin:0 0 8px}
+.btn{padding:8px 14px;border-radius:7px;font-size:13px;font-weight:500;cursor:pointer;font-family:inherit;border:1px solid}
+.primary{background:var(--h-fg);color:var(--h-bg);border-color:var(--h-fg)}
+.ghost{background:#fff;color:var(--h-fg);border-color:var(--h-border-strong)}
+.danger{background:#fff;color:var(--h-danger);border-color:#E5BFBF}
+.sm{padding:6px 12px;font-size:12px;border-radius:6px}
+</style></head><body>
+<div class="h">Buttons</div>
+<div class="row">
+<button class="btn primary">+ New intent</button>
+<button class="btn ghost">Invite agent</button>
+<button class="btn danger">Cancel</button>
+<button class="btn ghost sm">↻ Replay</button>
+<button class="btn ghost sm">▶ Play</button>
+</div>
+<div class="h">Stat tile</div>
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">
+<div style="background:#fff;border:1px solid var(--h-border);border-radius:10px;padding:18px"><div style="font-size:12px;color:var(--h-fg-3)">Active deals</div><div style="font-size:26px;font-weight:600;letter-spacing:-0.02em;color:var(--h-accent-mid);margin-top:4px">1</div><div style="font-size:12px;color:var(--h-fg-3)">negotiating now</div></div>
+<div style="background:#fff;border:1px solid var(--h-border);border-radius:10px;padding:18px"><div style="font-size:12px;color:var(--h-fg-3)">Saved vs list</div><div style="font-size:26px;font-weight:600;letter-spacing:-0.02em;color:var(--h-success);margin-top:4px">$23.18</div><div style="font-size:12px;color:var(--h-fg-3)">across 14 deals</div></div>
+<div style="background:#fff;border:1px solid var(--h-border);border-radius:10px;padding:18px"><div style="font-size:12px;color:var(--h-fg-3)">Blocked by shim</div><div style="font-size:26px;font-weight:600;letter-spacing:-0.02em;color:var(--h-warn);margin-top:4px">2</div><div style="font-size:12px;color:var(--h-fg-3)">never your money</div></div>
+<div style="background:#fff;border:1px solid var(--h-border);border-radius:10px;padding:18px"><div style="font-size:12px;color:var(--h-fg-3)">Settled this month</div><div style="font-size:26px;font-weight:600;letter-spacing:-0.02em;margin-top:4px">14</div><div style="font-size:12px;color:var(--h-fg-3)">all under cap</div></div>
+</div>
+</body></html>
