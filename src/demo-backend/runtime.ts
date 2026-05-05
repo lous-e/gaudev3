@@ -11,6 +11,9 @@ import type {
 
 export type DemoEventKind =
   | "marketplace.selected"
+  | "marketplace.scan_started"
+  | "marketplace.seller_reviewed"
+  | "marketplace.selection_finalized"
   | "policy.created"
   | "rpc.sent"
   | "rpc.received"
@@ -76,6 +79,25 @@ export type DemoDealRecord = {
     network: "base-sepolia";
     asset: "USDC";
   };
+  market_scan: {
+    searched_count: number;
+    matching_count: number;
+    selected_seller_id: string;
+    selected_reason: string;
+    completed: boolean;
+    candidates: Array<{
+      seller_id: string;
+      handle: string;
+      status: "selected" | "viable" | "rejected";
+      final_price?: number;
+      rounds: number;
+      reason: string;
+      fulfillment_terms: string;
+      rating: number;
+      inventory_available: number;
+      delivery_estimate?: string;
+    }>;
+  };
 };
 
 export type DemoBackendState = {
@@ -102,6 +124,14 @@ export function listSellers(state: DemoBackendState): DemoSellerAgent[] {
   return state.sellers;
 }
 
+export function listDeals(state: DemoBackendState): unknown[] {
+  return Array.from(state.deals.values())
+    .sort((left, right) =>
+      Date.parse(right.deal.updated_at) - Date.parse(left.deal.updated_at)
+    )
+    .map((record) => serializeDeal(record));
+}
+
 export function createDealFromRequest(
   state: DemoBackendState,
   body: unknown
@@ -110,24 +140,34 @@ export function createDealFromRequest(
     throw httpError(400, "Request body must be an object.");
   }
 
-  const sellerId = typeof body.seller_id === "string" ? body.seller_id : "";
-  const seller = state.sellers.find((candidate) => candidate.id === sellerId);
-
-  if (!seller) {
-    throw httpError(404, `Unknown seller_id: ${sellerId}`);
-  }
-
   const intent = parseBuyerIntent(body.intent);
   const strategy = parseBuyerStrategy(body.strategy, intent);
+  const sellerId = typeof body.seller_id === "string" ? body.seller_id : "";
+  const candidateSellers = selectCandidateSellers(state.sellers, intent, sellerId);
+
+  if (candidateSellers.length === 0) {
+    throw httpError(404, sellerId
+      ? `Unknown seller_id: ${sellerId}`
+      : `No sellers available for item: ${intent.item}`);
+  }
+
+  const marketScan = buildMarketScan(candidateSellers, intent, strategy);
+  const seller = candidateSellers.find((candidate) => candidate.id === marketScan.selected_seller_id) ?? candidateSellers[0];
   const now = nowIso();
   const dealId = nextDealId(state);
   const deal: Deal = {
     deal_id: dealId,
+    protocol: "nuff/v1",
+    intent_summary: `${intent.quantity}x ${intent.item}`,
     phase: "open",
     round: 1,
     buyer_pubkey: "mock-buyer-pubkey",
     seller_pubkey: seller.pubkey,
     item: intent.item,
+    quantity: intent.quantity,
+    currency: intent.currency,
+    buyer_constraints: intent.must_have,
+    buyer_deadline: intent.deadline,
     created_at: now,
     updated_at: now
   };
@@ -139,16 +179,11 @@ export function createDealFromRequest(
     strategy,
     phase: "open",
     events: [],
-    round: 1
+    round: 1,
+    market_scan: marketScan
   };
 
   state.deals.set(dealId, record);
-  emitEvent(state, record, {
-    kind: "marketplace.selected",
-    side: "system",
-    human_text: `${seller.handle} selected for ${intent.item}.`,
-    agent_payload: sellerCard(seller)
-  });
   emitEvent(state, record, {
     kind: "policy.created",
     side: "human",
@@ -160,7 +195,7 @@ export function createDealFromRequest(
     }
   });
 
-  queueMicrotask(() => runNegotiation(state, record));
+  queueMicrotask(() => runMarketScan(state, record));
   return record;
 }
 
@@ -337,6 +372,7 @@ export function serializeDeal(record: DemoDealRecord): unknown {
     current_price: record.current_price,
     round: record.round,
     seller: sellerCard(record.seller),
+    market_scan: record.market_scan,
     pending_approval: record.pending_approval,
     receipt: record.receipt,
     events: record.events
@@ -482,6 +518,61 @@ function runNegotiation(
   }
 
   walkDeal(state, record, "round_limit", "Round limit reached.");
+}
+
+function runMarketScan(
+  state: DemoBackendState,
+  record: DemoDealRecord
+): void {
+  const { candidates } = record.market_scan;
+
+  emitEvent(state, record, {
+    kind: "marketplace.scan_started",
+    side: "system",
+    human_text: `Reviewing ${record.market_scan.searched_count} candidate sellers for ${record.intent.item}.`,
+    agent_payload: {
+      searched_count: record.market_scan.searched_count,
+      matching_count: record.market_scan.matching_count,
+      item: record.intent.item
+    }
+  });
+
+  candidates.forEach((candidate, index) => {
+    setTimeout(() => {
+      emitEvent(state, record, {
+        kind: "marketplace.seller_reviewed",
+        side: "system",
+        human_text: candidate.status === "rejected"
+          ? `${candidate.handle} was rejected: ${candidate.reason}.`
+          : `${candidate.handle} came back at ${candidate.final_price != null ? formatPrice(candidate.final_price) : "no quote"} after ${candidate.rounds} rounds.`,
+        price: candidate.final_price,
+        agent_payload: candidate
+      });
+    }, 80 * index);
+  });
+
+  const finalizeDelay = 80 * candidates.length;
+  setTimeout(() => {
+    record.market_scan.completed = true;
+    emitEvent(state, record, {
+      kind: "marketplace.selection_finalized",
+      side: "system",
+      human_text: `${record.seller.handle} selected: ${record.market_scan.selected_reason}.`,
+      price: record.market_scan.candidates.find((candidate) => candidate.seller_id === record.seller.id)?.final_price,
+      agent_payload: {
+        selected_seller_id: record.market_scan.selected_seller_id,
+        selected_reason: record.market_scan.selected_reason,
+        candidates: record.market_scan.candidates
+      }
+    });
+    emitEvent(state, record, {
+      kind: "marketplace.selected",
+      side: "system",
+      human_text: `${record.seller.handle} selected for ${record.intent.item}.`,
+      agent_payload: sellerCard(record.seller)
+    });
+    runNegotiation(state, record);
+  }, finalizeDelay);
 }
 
 function requestHumanConfirmation(
@@ -805,6 +896,168 @@ function parseBuyerStrategy(value: unknown, intent: BuyerIntent): BuyerStrategy 
   };
 }
 
+function selectCandidateSellers(
+  sellers: DemoSellerAgent[],
+  intent: BuyerIntent,
+  sellerId: string
+): DemoSellerAgent[] {
+  if (sellerId) {
+    return sellers.filter((candidate) => candidate.id === sellerId);
+  }
+
+  const normalizedItem = intent.item.trim().toLowerCase();
+  const matched = sellers.filter((candidate) =>
+    candidate.policy.item_name.toLowerCase().includes(normalizedItem) ||
+    normalizedItem.includes(candidate.policy.item_name.toLowerCase().split(",")[0])
+  );
+
+  return matched.length > 0 ? matched : sellers;
+}
+
+function buildMarketScan(
+  candidates: DemoSellerAgent[],
+  intent: BuyerIntent,
+  strategy: BuyerStrategy
+): DemoDealRecord["market_scan"] {
+  const evaluations = candidates.map((seller) => evaluateSellerCandidate(seller, intent, strategy));
+  const viable = evaluations.filter((evaluation) => evaluation.status !== "rejected");
+  const selected = [...viable].sort((left, right) => {
+    const priceDelta = (left.final_price ?? Number.POSITIVE_INFINITY) - (right.final_price ?? Number.POSITIVE_INFINITY);
+    if (priceDelta !== 0) return priceDelta;
+    return right.rating - left.rating;
+  })[0] ?? [...evaluations].sort((left, right) => left.seller_id.localeCompare(right.seller_id))[0];
+
+  const candidatesWithSelection = evaluations.map((evaluation) => ({
+    ...evaluation,
+    status: evaluation.seller_id === selected.seller_id ? "selected" : evaluation.status
+  }));
+
+  return {
+    searched_count: candidates.length,
+    matching_count: candidates.length,
+    selected_seller_id: selected.seller_id,
+    selected_reason: selected.reason,
+    completed: false,
+    candidates: candidatesWithSelection
+  };
+}
+
+function evaluateSellerCandidate(
+  seller: DemoSellerAgent,
+  intent: BuyerIntent,
+  strategy: BuyerStrategy
+): DemoDealRecord["market_scan"]["candidates"][number] {
+  const maxRounds = Math.min(intent.max_rounds, seller.policy.max_rounds);
+  let buyerPrice = strategy.opening_offer;
+
+  for (let round = 1; round <= maxRounds; round += 1) {
+    const sellerMove = decideSellerMoveDemo({
+      buyerPrice,
+      listPrice: seller.policy.list_price,
+      minPrice: seller.policy.min_price,
+      round,
+      maxRounds
+    });
+
+    if (sellerMove === "accept") {
+      return {
+        seller_id: seller.id,
+        handle: seller.handle,
+        status: "viable",
+        final_price: buyerPrice,
+        rounds: round,
+        reason: buyerPrice <= intent.max_price
+          ? `best price within cap at ${formatPrice(buyerPrice)}`
+          : `above cap at ${formatPrice(buyerPrice)}`,
+        fulfillment_terms: seller.policy.fulfillment_terms,
+        rating: seller.rating,
+        inventory_available: seller.policy.inventory_available,
+        delivery_estimate: seller.policy.delivery_estimate
+      };
+    }
+
+    if (sellerMove === "walk") {
+      return {
+        seller_id: seller.id,
+        handle: seller.handle,
+        status: "rejected",
+        rounds: round,
+        reason: "seller floor stayed above buyer cap",
+        fulfillment_terms: seller.policy.fulfillment_terms,
+        rating: seller.rating,
+        inventory_available: seller.policy.inventory_available,
+        delivery_estimate: seller.policy.delivery_estimate
+      };
+    }
+
+    const sellerPrice = nextSellerCounterDemo(
+      seller.policy.list_price,
+      seller.policy.min_price,
+      round,
+      maxRounds
+    );
+
+    const buyerMove = decideBuyerMoveDemo({
+      sellerPrice,
+      targetPrice: intent.target_price ?? strategy.preferred_price,
+      maxPrice: intent.max_price,
+      round,
+      maxRounds
+    });
+
+    if (buyerMove === "accept") {
+      return {
+        seller_id: seller.id,
+        handle: seller.handle,
+        status: sellerPrice <= intent.max_price ? "viable" : "rejected",
+        final_price: sellerPrice,
+        rounds: round,
+        reason: sellerPrice <= intent.max_price
+          ? `seller met cap with ${formatPrice(sellerPrice)}`
+          : `counter landed above cap at ${formatPrice(sellerPrice)}`,
+        fulfillment_terms: seller.policy.fulfillment_terms,
+        rating: seller.rating,
+        inventory_available: seller.policy.inventory_available,
+        delivery_estimate: seller.policy.delivery_estimate
+      };
+    }
+
+    if (buyerMove === "walk") {
+      return {
+        seller_id: seller.id,
+        handle: seller.handle,
+        status: "rejected",
+        final_price: sellerPrice,
+        rounds: round,
+        reason: `counter stayed above cap at ${formatPrice(sellerPrice)}`,
+        fulfillment_terms: seller.policy.fulfillment_terms,
+        rating: seller.rating,
+        inventory_available: seller.policy.inventory_available,
+        delivery_estimate: seller.policy.delivery_estimate
+      };
+    }
+
+    buyerPrice = nextBuyerCounterDemo(
+      strategy.opening_offer,
+      intent.max_price,
+      Math.min(round + 1, maxRounds),
+      maxRounds
+    );
+  }
+
+  return {
+    seller_id: seller.id,
+    handle: seller.handle,
+    status: "rejected",
+    rounds: maxRounds,
+    reason: "round limit reached without a valid agreement",
+    fulfillment_terms: seller.policy.fulfillment_terms,
+    rating: seller.rating,
+    inventory_available: seller.policy.inventory_available,
+    delivery_estimate: seller.policy.delivery_estimate
+  };
+}
+
 function sellerCard(seller: DemoSellerAgent): unknown {
   return {
     id: seller.id,
@@ -812,6 +1065,7 @@ function sellerCard(seller: DemoSellerAgent): unknown {
     pubkey: seller.pubkey,
     endpoint: seller.endpoint,
     supports: ["nuff/v1", "x402/0.4"],
+    policy: seller.policy,
     listing: {
       item_id: seller.policy.item_id,
       item: seller.policy.item_name,

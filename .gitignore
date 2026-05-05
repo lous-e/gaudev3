@@ -4,6 +4,8 @@ klodi-plugin/*
 # Project build and deps
 node_modules/
 dist/
+.live-dist/
+.demo-dist/
 package-lock.json
 
 # Secrets and credentials
@@ -24,3 +26,4 @@ Thumbs.db
 
 # node modules
 node_modules/
+.vercel

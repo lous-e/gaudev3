@@ -140,6 +140,65 @@ describe("demo backend", () => {
     });
   });
 
+  it("lists created deals through the backend index endpoint", async () => {
+    const app = await startApp();
+    server = app.server;
+
+    const created = await postJson<{ deal_id: string }>(`${app.url}/api/deals`, {
+      seller_id: "seller-usbc-balanced",
+      intent: baseIntent()
+    });
+
+    await waitForEvent(app.url, created.deal_id, "marketplace.selected");
+
+    const listed = await getJson<{ deals: Array<Record<string, unknown>> }>(
+      `${app.url}/api/deals`
+    );
+
+    expect(listed.deals.length).toBeGreaterThanOrEqual(1);
+    expect(listed.deals[0]).toMatchObject({
+      deal_id: created.deal_id,
+      seller: { id: "seller-usbc-balanced" }
+    });
+  });
+
+  it("searches all matching sellers by default and records the market scan", async () => {
+    const app = await startApp();
+    server = app.server;
+
+    const created = await postJson<{ deal_id: string }>(`${app.url}/api/deals`, {
+      intent: baseIntent()
+    });
+    await waitForEvent(app.url, created.deal_id, "marketplace.selection_finalized");
+
+    const deal = await getJson<{
+      seller: { id: string };
+      market_scan: {
+        searched_count: number;
+        candidates: Array<{ seller_id: string; status: string }>;
+        selected_seller_id: string;
+      };
+    }>(`${app.url}/api/deals/${created.deal_id}`);
+
+    expect(deal.market_scan.searched_count).toBeGreaterThanOrEqual(5);
+    expect(deal.market_scan.candidates.length).toBeGreaterThanOrEqual(5);
+    expect(deal.market_scan.selected_seller_id).toBe(deal.seller.id);
+    expect(deal.market_scan.candidates.some((candidate) => candidate.status === "selected")).toBe(true);
+  });
+
+  it("serves the imported human and agent UI kits", async () => {
+    const app = await startApp();
+    server = app.server;
+
+    const human = await fetch(`${app.url}/ui/human`);
+    const agent = await fetch(`${app.url}/ui/agent`);
+
+    expect(human.ok).toBe(true);
+    expect(agent.ok).toBe(true);
+    expect(await human.text()).toContain("BidMesh — Human UI Kit");
+    expect(await agent.text()).toContain("BidMesh — Agent UI Kit");
+  });
+
   it("creates a deal, replays SSE events, and pauses for approval", async () => {
     const app = await startApp();
     server = app.server;

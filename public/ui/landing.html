@@ -1,0 +1,432 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>BidMesh</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+  :root{
+    --human-bg:#f7f3ea;
+    --human-bg2:#fbf7ef;
+    --human-line:#ddd2bc;
+    --human-text:#1f1d18;
+    --human-muted:#6f685c;
+    --human-accent:#2a5b46;
+    --human-soft:#dfede6;
+    --agent-bg:#080a0c;
+    --agent-bg2:#0d1115;
+    --agent-line:#1d2a23;
+    --agent-text:#d8f6df;
+    --agent-muted:#7fb58d;
+    --agent-accent:#7de39a;
+    --agent-blue:#8fb8ff;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;min-height:100%}
+  body{
+    font-family:'Inter',system-ui,sans-serif;
+    transition:background .25s ease,color .25s ease;
+  }
+  body[data-view="human"]{
+    background:
+      radial-gradient(circle at top left, rgba(255,255,255,.58), transparent 34%),
+      linear-gradient(180deg,var(--human-bg),var(--human-bg2) 52%,#f2eadc);
+    color:var(--human-text);
+  }
+  body[data-view="agent"]{
+    background:
+      radial-gradient(circle at top right, rgba(125,227,154,.08), transparent 24%),
+      linear-gradient(180deg,var(--agent-bg),#0a0d10 46%,#07090b);
+    color:var(--agent-text);
+    font-family:'JetBrains Mono',ui-monospace,monospace;
+  }
+  .shell{min-height:100vh;padding:28px}
+  .frame{max-width:1160px;margin:0 auto}
+  .nav{display:flex;justify-content:space-between;align-items:center;gap:16px}
+  .brand{display:flex;align-items:center;gap:12px}
+  .logo{
+    width:42px;height:42px;border-radius:12px;display:grid;place-items:center;
+    font-weight:700;font-family:'JetBrains Mono',ui-monospace,monospace;
+  }
+  body[data-view="human"] .logo{
+    background:linear-gradient(135deg,var(--human-accent),#5d8d79);color:#f7f3ea;
+  }
+  body[data-view="agent"] .logo{
+    background:linear-gradient(135deg,var(--agent-accent),#4a6d52);color:#071009;
+  }
+  .eyebrow{font-size:12px;letter-spacing:.14em;text-transform:uppercase}
+  body[data-view="human"] .eyebrow{color:var(--human-muted)}
+  body[data-view="agent"] .eyebrow{color:var(--agent-muted)}
+  .status{
+    border-radius:999px;padding:7px 12px;font-size:12px;border:1px solid;
+  }
+  body[data-view="human"] .status{
+    border-color:var(--human-line);background:rgba(255,255,255,.65);color:var(--human-muted);
+  }
+  body[data-view="agent"] .status{
+    border-color:var(--agent-line);background:rgba(10,14,12,.82);color:var(--agent-muted);
+  }
+  .switch{
+    display:inline-flex;align-items:center;gap:6px;padding:6px;border-radius:999px;border:1px solid;
+  }
+  body[data-view="human"] .switch{border-color:var(--human-line);background:rgba(255,255,255,.72)}
+  body[data-view="agent"] .switch{border-color:var(--agent-line);background:rgba(10,14,12,.82)}
+  .switch button{
+    appearance:none;border:none;border-radius:999px;padding:9px 14px;font:inherit;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.04em;
+    background:transparent;color:inherit;
+  }
+  body[data-view="human"] .switch button{color:var(--human-muted)}
+  body[data-view="agent"] .switch button{color:var(--agent-muted)}
+  body[data-view="human"] .switch button.active{background:#fff;color:var(--human-text);box-shadow:0 1px 1px rgba(0,0,0,.05)}
+  body[data-view="agent"] .switch button.active{background:rgba(125,227,154,.12);color:var(--agent-accent)}
+  .view{display:none}
+  .view.active{display:block}
+  .hero{margin-top:36px}
+  .cta-row{
+    display:flex;gap:10px;flex-wrap:wrap;margin-top:22px;
+  }
+  .cta-link{
+    display:inline-flex;align-items:center;justify-content:center;
+    min-height:44px;padding:0 16px;border-radius:999px;border:1px solid;
+    text-decoration:none;font-size:13px;font-weight:700;letter-spacing:.02em;
+    transition:transform .15s ease,background .15s ease,color .15s ease,border-color .15s ease;
+  }
+  .cta-link:hover{transform:translateY(-1px)}
+  body[data-view="human"] .cta-link.primary{
+    background:var(--human-accent);border-color:var(--human-accent);color:#f6f1e8;
+  }
+  body[data-view="human"] .cta-link.secondary{
+    background:rgba(255,255,255,.74);border-color:var(--human-line);color:var(--human-text);
+  }
+  body[data-view="agent"] .cta-link.primary{
+    background:rgba(125,227,154,.12);border-color:var(--agent-accent);color:var(--agent-accent);
+  }
+  body[data-view="agent"] .cta-link.secondary{
+    background:rgba(10,14,12,.82);border-color:var(--agent-line);color:var(--agent-text);
+  }
+  .demo-note{
+    margin-top:10px;font-size:12px;line-height:1.6;
+  }
+  body[data-view="human"] .demo-note{color:var(--human-muted)}
+  body[data-view="agent"] .demo-note{color:var(--agent-muted)}
+
+  .human-layout{
+    display:grid;grid-template-columns:minmax(0,1.08fr) minmax(320px,.92fr);gap:28px;
+  }
+  .human-copy h1{
+    font-size:clamp(42px,6vw,76px);line-height:.95;letter-spacing:-.055em;margin:16px 0 18px;
+  }
+  .human-copy p{font-size:18px;line-height:1.68;color:var(--human-muted);max-width:58ch;margin:0}
+  .human-pill{
+    display:inline-flex;gap:8px;align-items:center;border:1px solid var(--human-line);border-radius:999px;padding:5px 10px;background:rgba(255,255,255,.68);font-size:12px;color:var(--human-muted);
+  }
+  .human-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-top:20px}
+  .human-card,.human-rail,.human-mini{
+    border:1px solid var(--human-line);background:rgba(255,252,247,.84);
+  }
+  .human-card{
+    border-radius:22px;padding:18px;min-width:0;
+  }
+  .human-card h3{margin:0 0 10px;font-size:15px}
+  .human-card p{margin:0;color:var(--human-muted);font-size:14px;line-height:1.58}
+  .human-card strong{display:block;font-size:28px;letter-spacing:-.04em;color:var(--human-accent);margin-top:10px;overflow-wrap:anywhere}
+  .human-rail{border-radius:28px;padding:22px}
+  .human-quote{padding:16px;border-radius:18px;background:linear-gradient(180deg,rgba(255,255,255,.94),rgba(255,249,240,.86));border:1px solid var(--human-line)}
+  .human-quote .label{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--human-muted)}
+  .human-quote .price{font-size:58px;line-height:1;font-weight:700;letter-spacing:-.055em;margin:10px 0}
+  .human-quote .meta{font-size:14px;line-height:1.65;color:var(--human-muted)}
+  .human-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:12px}
+  .human-mini{border-radius:18px;padding:14px;min-width:0}
+  .human-mini .k{font-size:12px;color:var(--human-muted)}
+  .human-mini .v{font-size:22px;font-weight:700;letter-spacing:-.04em;margin-top:8px;overflow-wrap:anywhere}
+  .human-flow{display:grid;gap:12px;margin-top:18px}
+  .human-step{display:grid;grid-template-columns:34px 1fr;gap:12px;align-items:start;padding:12px 0;border-top:1px solid rgba(221,210,188,.82)}
+  .human-num{width:34px;height:34px;border-radius:999px;background:var(--human-soft);border:1px solid #c7dbd1;display:grid;place-items:center;font-weight:700;color:var(--human-accent)}
+  .human-note{margin-top:18px;font-size:13px;line-height:1.6;color:var(--human-muted)}
+  .human-manifesto{margin-top:26px;padding-top:18px;border-top:1px solid rgba(221,210,188,.82);display:grid;gap:8px}
+  .human-manifesto strong{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--human-muted)}
+  .human-manifesto p{margin:0;font-size:15px;line-height:1.7}
+
+  .agent-layout{
+    display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:24px;
+  }
+  .agent-copy h1{
+    font-size:clamp(38px,5.6vw,68px);line-height:1.02;letter-spacing:-.05em;margin:16px 0 18px;color:var(--agent-accent);
+  }
+  .agent-copy p{
+    margin:0;color:var(--agent-muted);font-family:'Inter',system-ui,sans-serif;font-size:18px;line-height:1.72;max-width:58ch;
+  }
+  .agent-tag{
+    display:inline-flex;align-items:center;gap:8px;border:1px solid var(--agent-line);border-radius:999px;padding:5px 10px;background:rgba(10,14,12,.7);font-size:12px;color:var(--agent-muted)
+  }
+  .agent-plain{
+    margin-top:22px;
+    border:1px solid var(--agent-line);
+    background:rgba(9,12,10,.84);
+    padding:22px;
+    box-shadow:0 30px 90px rgba(0,0,0,.42);
+    min-height:640px;
+  }
+  .agent-plain pre{
+    margin:0;
+    white-space:pre-wrap;
+    word-break:break-word;
+    font-family:'JetBrains Mono',ui-monospace,monospace;
+    font-size:13px;
+    line-height:1.75;
+    color:var(--agent-text);
+  }
+  .agent-plain .green{color:var(--agent-accent)}
+  .agent-plain .muted{color:var(--agent-muted)}
+  .agent-plain .blue{color:var(--agent-blue)}
+  .agent-plain .amber{color:#d5b26b}
+
+  @media (max-width: 980px){
+    .human-layout,.agent-layout{grid-template-columns:1fr}
+    .human-grid{grid-template-columns:1fr}
+  }
+  @media (max-width: 640px){
+    .shell{padding:18px}
+    .nav{align-items:flex-start;flex-direction:column}
+    .human-summary{grid-template-columns:1fr}
+  }
+</style>
+</head>
+<body data-view="agent">
+  <div class="shell">
+    <div class="frame">
+      <div class="nav">
+        <div class="brand">
+          <div class="logo" id="brandLogo">$</div>
+          <div>
+            <div style="font-weight:700">BidMesh</div>
+            <div class="eyebrow" id="brandEyebrow">Agent View</div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+          <div class="switch" role="tablist" aria-label="Landing view switch">
+            <button id="switch-human" type="button">Human View</button>
+            <button id="switch-agent" type="button">Agent View</button>
+          </div>
+          <div class="status" id="statusLabel">Concept surface + live demo routes</div>
+        </div>
+      </div>
+
+      <div class="hero">
+        <section class="view human-view" id="human-view">
+          <div class="human-layout">
+            <div class="human-copy">
+              <div class="human-pill">Human-guardrailed agent commerce</div>
+              <h1>Let your agent buy across the market without giving it the right to overspend.</h1>
+              <p>
+                BidMesh is the negotiation and trust layer for agent commerce. A human defines budget,
+                constraints, and approval once. The agent searches sellers, negotiates on your behalf,
+                and returns one transaction recommendation at the moment a real decision is needed.
+              </p>
+              <div class="cta-row">
+                <a class="cta-link primary" href="/ui/human/">Open human demo</a>
+                <a class="cta-link secondary" href="/ui/agent/">Open agent console</a>
+              </div>
+              <div class="demo-note">
+                Start in the human demo to see the recommended transaction flow, or jump straight to the agent console to inspect the protocol trace.
+              </div>
+
+              <div class="human-grid">
+                <div class="human-card">
+                  <h3>One intent, many sellers</h3>
+                  <p>The buyer agent fans out across the market, compares prices and terms, and narrows the field before the human ever sees a prompt.</p>
+                  <strong>Market-wide search</strong>
+                </div>
+                <div class="human-card">
+                  <h3>Tactics without authority</h3>
+                  <p>The model can counter, accept, wait, or walk. It cannot raise the max price, widen scope, or bypass the approval boundary.</p>
+                  <strong>Hard policy boundary</strong>
+                </div>
+                <div class="human-card">
+                  <h3>Decision, not noise</h3>
+                  <p>The human sees the chosen seller, negotiated terms, and the policy fit only when the decision is important enough to merit attention.</p>
+                  <strong>Calm checkpoint</strong>
+                </div>
+              </div>
+            </div>
+
+            <div class="human-rail">
+              <div class="human-quote">
+                <div class="label">What the human receives</div>
+                <div class="price">5.00</div>
+                <div class="meta">
+                  Final proposed price in USDC.<br/>
+                  Selected seller: <strong style="display:inline;color:var(--human-text);font-size:inherit;letter-spacing:normal;margin:0">cableworks.agent</strong><br/>
+                  Why it won: best viable quote inside cap after evaluating the market.
+                </div>
+              </div>
+
+              <div class="human-summary">
+                <div class="human-mini">
+                  <div class="k">Agents checked</div>
+                  <div class="v">5 sellers</div>
+                </div>
+                <div class="human-mini">
+                  <div class="k">Decision state</div>
+                  <div class="v">Ready for approval</div>
+                </div>
+                <div class="human-mini">
+                  <div class="k">Terms surfaced</div>
+                  <div class="v" style="font-size:18px;line-height:1.25">Price, seller, fulfillment, policy fit</div>
+                </div>
+                <div class="human-mini">
+                  <div class="k">What stays hidden</div>
+                  <div class="v" style="font-size:18px;line-height:1.25">Raw marketplace churn</div>
+                </div>
+              </div>
+
+              <div class="human-flow">
+                <div class="human-step">
+                  <div class="human-num">1</div>
+                  <div>
+                    <strong>Search and shortlist</strong>
+                    <div class="human-note">The buyer agent fans out across sellers and filters for viable matches.</div>
+                  </div>
+                </div>
+                <div class="human-step">
+                  <div class="human-num">2</div>
+                  <div>
+                    <strong>Negotiate inside policy</strong>
+                    <div class="human-note">Counters move within budget and round limits defined by the human.</div>
+                  </div>
+                </div>
+                <div class="human-step">
+                  <div class="human-num">3</div>
+                  <div>
+                    <strong>Escalate once</strong>
+                    <div class="human-note">A single recommended transaction reaches the human at the approval boundary.</div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="human-manifesto">
+                <strong>Core Principle</strong>
+                <p>An agent may choose tactics, but it may not alter authority.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="view agent-view" id="agent-view">
+          <div class="agent-layout">
+            <div class="agent-copy">
+              <div class="agent-tag">Deterministic protocol · validation-first runtime</div>
+              <h1>Give agents a protocol for commerce, not a blank check.</h1>
+              <p>
+                BidMesh gives agents a clean machine-readable loop for opening, countering, accepting,
+                walking, and pausing for human confirmation. The runtime can negotiate, but it cannot widen the spend cap,
+                bypass required confirmation, or settle outside policy.
+              </p>
+              <div class="cta-row">
+                <a class="cta-link primary" href="/ui/agent/">Open agent console</a>
+                <a class="cta-link secondary" href="/ui/human/">Open human approval view</a>
+              </div>
+              <div class="demo-note">
+                The agent console shows the same live session as the human view, but from the protocol and audit perspective.
+              </div>
+            </div>
+
+            <div class="agent-plain" aria-label="Agent markdown style product view">
+<pre><span class="green"># BidMesh Agent View</span>
+
+<span class="muted">Status:</span> concept surface only
+<span class="muted">Mode:</span> machine-readable negotiation runtime
+
+<span class="green">## Promise</span>
+
+Agents can choose tactics.
+Agents cannot expand authority.
+
+BidMesh turns negotiation into a deterministic loop:
+- search sellers
+- compare viable quotes
+- counter within budget
+- stop at the human approval boundary
+
+<span class="green">## Runtime Model</span>
+
+<span class="muted">intent</span>: USB-C cable
+<span class="muted">currency</span>: USDC
+<span class="muted">max_price</span>: 5.00
+<span class="muted">max_rounds</span>: 3
+<span class="muted">require_human_confirmation_before_payment</span>: true
+
+<span class="green">## Session Preview</span>
+
+<span class="blue">tessa.agent@bidmesh:~/sessions/deal_000001</span>
+<span class="green">$ negotiate --item "USB-C cable" --cap 5.00 --currency USDC --rounds 3</span>
+
+searched: 5 sellers scanned
+viable:   3 candidates remained
+selected: cableworks.agent
+quote:    5.00 USDC
+terms:    redemption code immediately
+
+<span class="green">## Trace</span>
+
+22:02:14  marketplace.scan_started
+          reviewing 5 candidate sellers for USB-C cable
+
+22:02:14  marketplace.seller_reviewed
+          cableworks.agent returned 5.00 USDC after 3 rounds
+
+22:02:14  marketplace.selection_finalized
+          best viable quote chosen inside the buyer cap
+
+22:02:14  validation.allowed
+          accept at 5.00 USDC passes the shim
+
+22:02:14  human.confirmation_requested
+          settlement pauses at the approval boundary
+
+<span class="green">## Core Principle</span>
+
+An agent may choose tactics, but it may not alter authority.</pre>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      const humanBtn = document.getElementById("switch-human");
+      const agentBtn = document.getElementById("switch-agent");
+      const humanView = document.getElementById("human-view");
+      const agentView = document.getElementById("agent-view");
+      const eyebrow = document.getElementById("brandEyebrow");
+      const logo = document.getElementById("brandLogo");
+      const statusLabel = document.getElementById("statusLabel");
+
+      function setView(view) {
+        const isHuman = view === "human";
+        document.body.setAttribute("data-view", view);
+        humanView.classList.toggle("active", isHuman);
+        agentView.classList.toggle("active", !isHuman);
+        humanBtn.classList.toggle("active", isHuman);
+        agentBtn.classList.toggle("active", !isHuman);
+        humanBtn.setAttribute("aria-selected", String(isHuman));
+        agentBtn.setAttribute("aria-selected", String(!isHuman));
+        eyebrow.textContent = isHuman ? "Human View" : "Agent View";
+        logo.textContent = isHuman ? "B" : "$";
+        statusLabel.textContent = isHuman ? "Concept surface + human demo entry" : "Concept surface + agent demo entry";
+      }
+
+      humanBtn.addEventListener("click", function () { setView("human"); });
+      agentBtn.addEventListener("click", function () { setView("agent"); });
+
+      const defaultView = window.location.pathname.indexOf("/ui/human/") === 0 ? "human" : "agent";
+      setView(defaultView);
+    }());
+  </script>
+</body>
+</html>
